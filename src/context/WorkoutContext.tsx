@@ -261,7 +261,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
 
         // 3. Fallback if slots didn't fill enough (e.g. limited equipment)
-        if (selectedExercises.length < 4) {
+        if (selectedExercises.length < 8) {
             const remaining = getAvailableExercises(state.equipment, state.currentSplit)
                 .filter(ex => !usedNames.has(ex.name))
                 .sort(() => 0.5 - Math.random())
