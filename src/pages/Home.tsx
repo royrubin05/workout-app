@@ -4,7 +4,7 @@ import { CheckCircle2, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const Home: React.FC = () => {
-    const { dailyWorkout, completedToday, completeWorkout, refreshWorkout, currentSplit } = useWorkout();
+    const { dailyWorkout, completedToday, refreshWorkout, currentSplit } = useWorkout();
 
     if (completedToday) {
         return (
@@ -80,11 +80,7 @@ export const Home: React.FC = () => {
                 )}
             </div>
 
-            {dailyWorkout.length > 0 && (
-                <button onClick={completeWorkout} className="btn-primary">
-                    Complete Workout
-                </button>
-            )}
+
         </div>
     );
 };

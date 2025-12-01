@@ -184,25 +184,96 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     const generateWorkout = () => {
-        // If we just completed a workout yesterday, rotate split. 
-        // But here we just want to generate for the *current* split state.
-        // The rotation happens on completion.
+        // --- OPTIMAL PPL TEMPLATE LOGIC ---
 
-        const available = getAvailableExercises(state.equipment, state.currentSplit);
-        const count = 8;
+        // 1. Define Slots for each split
+        const getSlots = (split: string) => {
+            if (split === 'Push') {
+                return [
+                    { type: 'Compound', muscle: 'Chest', count: 1 },      // e.g. Bench Press
+                    { type: 'Compound', muscle: 'Shoulders', count: 1 },  // e.g. Overhead Press
+                    { type: 'Isolation', muscle: 'Chest', count: 1 },     // e.g. Flys
+                    { type: 'Isolation', muscle: 'Shoulders', count: 1 }, // e.g. Lateral Raises
+                    { type: 'Isolation', muscle: 'Triceps', count: 2 },   // e.g. Extensions
+                ];
+            } else if (split === 'Pull') {
+                return [
+                    { type: 'Compound', muscle: 'Back', count: 2 },       // e.g. Pull-ups, Rows
+                    { type: 'Isolation', muscle: 'Rear Delts', count: 1 },// e.g. Face Pulls
+                    { type: 'Isolation', muscle: 'Biceps', count: 2 },    // e.g. Curls
+                    { type: 'Isolation', muscle: 'Traps', count: 1 },     // e.g. Shrugs
+                ];
+            } else if (split === 'Legs') {
+                return [
+                    { type: 'Compound', muscle: 'Quads', count: 1 },      // e.g. Squat
+                    { type: 'Compound', muscle: 'Hamstrings', count: 1 }, // e.g. RDL
+                    { type: 'Compound', muscle: 'Legs', count: 1 },       // e.g. Lunges
+                    { type: 'Isolation', muscle: 'Quads', count: 1 },     // e.g. Extensions
+                    { type: 'Isolation', muscle: 'Hamstrings', count: 1 },// e.g. Curls
+                    { type: 'Isolation', muscle: 'Calves', count: 1 },    // e.g. Calf Raises
+                ];
+            }
+            // Full Body Fallback
+            return [
+                { type: 'Compound', muscle: 'Legs', count: 1 },
+                { type: 'Compound', muscle: 'Chest', count: 1 },
+                { type: 'Compound', muscle: 'Back', count: 1 },
+                { type: 'Compound', muscle: 'Shoulders', count: 1 },
+                { type: 'Isolation', muscle: 'Arms', count: 1 },
+                { type: 'Isolation', muscle: 'Core', count: 1 },
+            ];
+        };
 
-        // Fallback if not enough exercises for split (e.g. only have bands)
-        // If < 4 exercises, try Full Body or just all available
-        let pool = available;
-        if (pool.length < 4) {
-            pool = getAvailableExercises(state.equipment); // Fallback to all
+        const slots = getSlots(state.currentSplit);
+        const selectedExercises: Exercise[] = [];
+        const usedNames = new Set<string>();
+
+        // 2. Fill Slots
+        slots.forEach(slot => {
+            // Get all candidates for this slot
+            const candidates = getAvailableExercises(state.equipment).filter(ex => {
+                // Match Muscle Group
+                // Note: Our data has 'muscleGroup' (e.g. Chest) and 'category' (e.g. Push)
+                // We need to be flexible with matching.
+                const target = slot.muscle.toLowerCase();
+                const exMuscle = ex.muscleGroup.toLowerCase();
+                const exName = ex.name.toLowerCase();
+
+                // Muscle Match
+                const muscleMatch = exMuscle.includes(target) ||
+                    (target === 'arms' && (exMuscle.includes('biceps') || exMuscle.includes('triceps'))) ||
+                    (target === 'back' && (exMuscle.includes('lats') || exMuscle.includes('traps')));
+
+                // Type Match (Heuristic)
+                // Compound usually involves Barbell/Dumbbell/Bodyweight and multi-joint
+                // Isolation usually involves Machines/Cables or single-joint
+                // This is hard to perfect without specific data, so we'll rely on muscle priority first.
+
+                return muscleMatch && !usedNames.has(ex.name);
+            });
+
+            // Shuffle and pick
+            const shuffled = candidates.sort(() => 0.5 - Math.random());
+            const picked = shuffled.slice(0, slot.count);
+
+            picked.forEach(p => {
+                selectedExercises.push(p);
+                usedNames.add(p.name);
+            });
+        });
+
+        // 3. Fallback if slots didn't fill enough (e.g. limited equipment)
+        if (selectedExercises.length < 4) {
+            const remaining = getAvailableExercises(state.equipment, state.currentSplit)
+                .filter(ex => !usedNames.has(ex.name))
+                .sort(() => 0.5 - Math.random())
+                .slice(0, 8 - selectedExercises.length);
+            selectedExercises.push(...remaining);
         }
-
-        const shuffled = [...pool].sort(() => 0.5 - Math.random());
 
         setState(prev => ({
             ...prev,
-            dailyWorkout: shuffled.slice(0, count),
+            dailyWorkout: selectedExercises,
             lastWorkoutDate: new Date().toDateString()
         }));
     };
