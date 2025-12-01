@@ -44,8 +44,40 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Initialize
     useEffect(() => {
         const init = async () => {
-            // 1. Check Auth
-            const { data: { session } } = await supabase.auth.getSession();
+            // 1. Auto-Login (Hardcoded for Single User Mode)
+            const EMAIL = 'admin@fitgen.app';
+            const PASSWORD = 'D*UWQufY_h.w8_2'; // User provided DB password, using as Auth password
+
+            let { data: { session } } = await supabase.auth.getSession();
+
+            if (!session) {
+                console.log('No session, attempting auto-login...');
+                // Try signing in
+                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                    email: EMAIL,
+                    password: PASSWORD
+                });
+
+                if (signInError) {
+                    console.warn('Auto-login failed, attempting to create user...', signInError.message);
+                    // Try signing up if login fails (first run)
+                    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                        email: EMAIL,
+                        password: PASSWORD
+                    });
+
+                    if (signUpData.session) {
+                        session = signUpData.session;
+                    } else if (signUpError) {
+                        console.error('Auto-signup failed:', signUpError.message);
+                    } else {
+                        console.log('User created. Please confirm email if enabled in Supabase.');
+                    }
+                } else {
+                    session = signInData.session;
+                }
+            }
+
             setUser(session?.user ?? null);
 
             // 2. Load Local Storage (Fast Fallback)

@@ -3,13 +3,13 @@ import { useWorkout } from '../context/WorkoutContext';
 import { Save, Dumbbell, History } from 'lucide-react';
 import { getAllExercises } from '../data/exercises';
 
-import { useNavigate } from 'react-router-dom';
+
 
 export const Settings: React.FC = () => {
     const { equipment, updateEquipment, history } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [previewCount, setPreviewCount] = useState(0);
-    const navigate = useNavigate();
+
 
     useEffect(() => {
         setInput(equipment);
@@ -80,12 +80,9 @@ export const Settings: React.FC = () => {
             </div>
             <div className="glass-card p-6 mb-24">
                 <h3 className="text-xl font-bold text-white mb-4">Account</h3>
-                <button
-                    onClick={() => navigate('/auth')}
-                    className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg transition-colors"
-                >
-                    Sign In / Sync Data
-                </button>
+                <div className="text-slate-400 text-sm">
+                    Auto-synced to Cloud (Single User Mode)
+                </div>
             </div>
         </div>
     );
