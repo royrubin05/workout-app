@@ -178,9 +178,63 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     }, [isLoaded, state.lastWorkoutDate, state.equipment, state.completedToday]);
 
+    // --- SMART MATCHING LOGIC ---
+    const normalizeUserEquipment = (userInput: string): string[] => {
+        const rawItems = userInput.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
+        const mappedItems = new Set<string>();
+
+        // Always include bodyweight
+        mappedItems.add('body weight');
+        mappedItems.add('body only');
+        mappedItems.add('bodyweight');
+
+        rawItems.forEach(item => {
+            // Direct match
+            mappedItems.add(item);
+
+            // Synonyms & Inferences
+            if (item.includes('dumbbell') || item.includes('dumbell') || item.includes('weights')) {
+                mappedItems.add('dumbbell');
+            }
+            if (item.includes('barbell') || item.includes('bar') || item.includes('weights')) {
+                mappedItems.add('barbell');
+                mappedItems.add('ez curl bar');
+                mappedItems.add('e-z curl bar');
+            }
+            if (item.includes('kettlebell')) {
+                mappedItems.add('kettlebells');
+            }
+            if (item.includes('cable') || item.includes('pulley')) {
+                mappedItems.add('cable');
+            }
+            if (item.includes('machine') || item.includes('gym')) {
+                mappedItems.add('machine');
+                mappedItems.add('cable');
+                mappedItems.add('smith machine');
+            }
+            if (item.includes('band') || item.includes('resistance')) {
+                mappedItems.add('bands');
+            }
+            if (item.includes('ball') || item.includes('medicine')) {
+                mappedItems.add('medicine ball');
+                mappedItems.add('exercise ball');
+            }
+            if (item.includes('bench')) {
+                // Bench enables specific dumbbell/barbell moves, but doesn't map to a category directly in this API
+                // The API uses 'dumbbell' or 'barbell' as the equipment, not 'bench'.
+                // So we don't need to add 'bench' to the equipment list for matching, 
+                // but we assume if they have dumbbells + bench, they can do bench press.
+            }
+            if (item.includes('pull up') || item.includes('pull-up') || item.includes('chin up')) {
+                // API usually classifies these as 'body only' or 'body weight'
+            }
+        });
+
+        return Array.from(mappedItems);
+    };
+
     const getAvailableExercises = (eqString: string, category?: string) => {
-        const userEq = eqString.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
-        if (!userEq.includes('bodyweight')) userEq.push('bodyweight');
+        const userEq = normalizeUserEquipment(eqString);
 
         // Merge Local + API
         const allExercises = [...EXERCISES, ...apiExercises];
@@ -193,9 +247,18 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (category && ex.category !== category && category !== 'Full Body') {
                 return false;
             }
-            const req = ex.equipment.toLowerCase();
-            const requirements = req.split(',').map(r => r.trim());
-            return requirements.every(r => userEq.some(u => u.includes(r) || r.includes(u)));
+
+            // Smart Equipment Check
+            const requiredEq = ex.equipment.toLowerCase();
+
+            // Special Case: "Body Only" / "Body Weight"
+            if (requiredEq === 'body only' || requiredEq === 'body weight' || requiredEq === 'bodyweight') {
+                return true;
+            }
+
+            // Check if ANY of the user's mapped equipment matches the requirement
+            // The API usually lists a single equipment type per exercise (e.g. "dumbbell")
+            return userEq.some(u => requiredEq.includes(u) || u.includes(requiredEq));
         });
     };
 
