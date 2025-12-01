@@ -21,10 +21,10 @@ interface WorkoutContextType extends WorkoutState {
     updateEquipment: (eq: string) => void;
     completeWorkout: () => void;
     refreshWorkout: () => void;
-    user: any;
+    refreshWorkout: () => void;
 }
 
-import { supabase } from '../services/supabase';
+// import { supabase } from '../services/supabase';
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
@@ -40,48 +40,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const [isLoaded, setIsLoaded] = useState(false);
     const [apiExercises, setApiExercises] = useState<Exercise[]>([]);
-    const [user, setUser] = useState<any>(null);
 
     // Initialize
     useEffect(() => {
         const init = async () => {
-            // 1. Auto-Login (Hardcoded for Single User Mode)
-            const EMAIL = 'roy.rubin@gmail.com';
-            const PASSWORD = 'D*UWQufY_h.w8_2'; // User provided DB password, using as Auth password
-
-            let { data: { session } } = await supabase.auth.getSession();
-
-            if (!session) {
-                console.log('No session, attempting auto-login...');
-                // Try signing in
-                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-                    email: EMAIL,
-                    password: PASSWORD
-                });
-
-                if (signInError) {
-                    console.warn('Auto-login failed, attempting to create user...', signInError.message);
-                    // Try signing up if login fails (first run)
-                    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                        email: EMAIL,
-                        password: PASSWORD
-                    });
-
-                    if (signUpData.session) {
-                        session = signUpData.session;
-                    } else if (signUpError) {
-                        console.error('Auto-signup failed:', signUpError.message);
-                    } else {
-                        console.log('User created. Please confirm email if enabled in Supabase.');
-                    }
-                } else {
-                    session = signInData.session;
-                }
-            }
-
-            setUser(session?.user ?? null);
-
-            // 2. Load Local Storage (Fast Fallback)
+            // 1. Load Local Storage (Primary Source)
             const localData = loadFromStorage();
             if (localData) {
                 const today = new Date().toDateString();
@@ -95,29 +58,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }));
             }
 
-            // 3. Load from Supabase (Source of Truth)
-            if (session?.user) {
-                try {
-                    // Load Settings
-                    const { data: settings } = await supabase
-                        .from('user_settings')
-                        .select('equipment')
-                        .eq('id', session.user.id)
-                        .single();
-
-                    if (settings) {
-                        setState(prev => ({ ...prev, equipment: settings.equipment }));
-                    }
-
-                    // Load History (Last workout)
-                    // This is simplified; normally we'd fetch the whole history or just the latest for logic
-                    // For now, let's keep history local-first but push to DB
-                } catch (e) {
-                    console.error('Supabase load error:', e);
-                }
-            }
-
-            // 4. Load API Data
+            // 2. Load API Data
             try {
                 const { fetchExercisesFromAPI, mapApiToInternal } = await import('../services/exerciseDB');
                 const apiData = await fetchExercisesFromAPI();
@@ -132,34 +73,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         };
 
         init();
-
-        // Auth Listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null);
-        });
-
-        return () => subscription.unsubscribe();
     }, []);
 
-    // Save to storage & Supabase on change
+    // Save to storage on change
     useEffect(() => {
         if (isLoaded) {
             saveToStorage(state);
-
-            // Sync to Supabase if logged in
-            if (user) {
-                const sync = async () => {
-                    // Upsert Settings
-                    await supabase.from('user_settings').upsert({
-                        id: user.id,
-                        equipment: state.equipment,
-                        updated_at: new Date().toISOString()
-                    });
-                };
-                sync();
-            }
         }
-    }, [state, isLoaded, user]);
+    }, [state, isLoaded]);
 
     // Generate workout if needed
     useEffect(() => {
@@ -315,7 +236,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     return (
-        <WorkoutContext.Provider value={{ ...state, updateEquipment, completeWorkout, refreshWorkout, user }}>
+        <WorkoutContext.Provider value={{ ...state, updateEquipment, completeWorkout, refreshWorkout }}>
             {!isLoaded ? (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
                     <div className="text-center">
