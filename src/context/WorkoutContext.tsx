@@ -33,6 +33,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         completedToday: false,
     });
 
+    const [isLoaded, setIsLoaded] = useState(false);
+
     // Load from storage on mount
     useEffect(() => {
         const loaded = loadFromStorage();
@@ -47,12 +49,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 completedToday: isCompleted || false
             }));
         }
+        setIsLoaded(true);
     }, []);
 
     // Save to storage on change
     useEffect(() => {
-        saveToStorage(state);
-    }, [state]);
+        if (isLoaded) {
+            saveToStorage(state);
+        }
+    }, [state, isLoaded]);
 
     // Generate workout if needed
     useEffect(() => {

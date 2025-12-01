@@ -27,6 +27,7 @@ export const Settings: React.FC = () => {
 
     const handleSave = () => {
         updateEquipment(input);
+        alert('Settings saved successfully!');
         // Visual feedback could be added here
     };
 
