@@ -86,7 +86,7 @@ export const Settings: React.FC = () => {
                 <button
                     onClick={() => {
                         localStorage.removeItem('fitgen_api_cache_v3');
-                        localStorage.removeItem('fitgen_api_cache_v3');
+                        localStorage.removeItem('workout-storage'); // Clear stale workout data
                         window.location.href = '/';
                     }}
                     className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
