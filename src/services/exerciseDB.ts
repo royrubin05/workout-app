@@ -3,7 +3,7 @@ import type { Exercise } from '../data/exercises';
 const FREE_DB_URL = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/dist/exercises.json';
 const IMAGE_BASE_URL = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/';
 
-const CACHE_KEY = 'fitgen_api_cache_v2'; // Bump version
+const CACHE_KEY = 'fitgen_api_cache_v3'; // Bump version to force CDN refresh
 const CACHE_DURATION = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 export interface ApiExercise {
