@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Save, Dumbbell, History } from 'lucide-react';
+import { Save, Dumbbell, History, RefreshCw } from 'lucide-react';
 import { getAllExercises } from '../data/exercises';
 
 
@@ -80,9 +80,19 @@ export const Settings: React.FC = () => {
             </div>
             <div className="glass-card p-6 mb-24">
                 <h3 className="text-xl font-bold text-white mb-4">Account</h3>
-                <div className="text-slate-400 text-sm">
+                <div className="text-slate-400 text-sm mb-4">
                     Auto-synced to Cloud (Single User Mode)
                 </div>
+                <button
+                    onClick={() => {
+                        localStorage.removeItem('fitgen_api_cache_v3');
+                        window.location.reload();
+                    }}
+                    className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                    <RefreshCw size={18} />
+                    Reset App Data (Fix Images)
+                </button>
             </div>
         </div>
     );
