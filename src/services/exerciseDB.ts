@@ -1,28 +1,26 @@
 import type { Exercise } from '../data/exercises';
 
-const RAPIDAPI_KEY = import.meta.env.VITE_RAPIDAPI_KEY;
-const RAPIDAPI_HOST = import.meta.env.VITE_RAPIDAPI_HOST;
-const CACHE_KEY = 'fitgen_api_cache_v1';
+const FREE_DB_URL = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json';
+const IMAGE_BASE_URL = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
+
+const CACHE_KEY = 'fitgen_api_cache_v2'; // Bump version
 const CACHE_DURATION = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 export interface ApiExercise {
     id: string;
     name: string;
-    bodyPart: string;
+    force: string;
+    level: string;
+    mechanic: string;
     equipment: string;
-    gifUrl: string;
-    target: string;
+    primaryMuscles: string[];
+    secondaryMuscles: string[];
+    instructions: string[];
+    category: string;
+    images: string[];
 }
 
 export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
-    // Fallback to hardcoded key if env var is missing (User requested)
-    const apiKey = RAPIDAPI_KEY || 'e25b25db91msh15de2e9aee31d5fp1288f4jsneb3e3653385';
-
-    if (!apiKey) {
-        console.warn('No RapidAPI Key found. Using local data only.');
-        return [];
-    }
-
     // Check Cache
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
@@ -34,13 +32,8 @@ export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
     }
 
     try {
-        const response = await fetch(`https://${RAPIDAPI_HOST}/exercises?limit=1300`, {
-            method: 'GET',
-            headers: {
-                'x-rapidapi-key': apiKey,
-                'x-rapidapi-host': RAPIDAPI_HOST,
-            },
-        });
+        console.log('Fetching from Free Exercise DB...');
+        const response = await fetch(FREE_DB_URL);
 
         if (!response.ok) {
             throw new Error(`API Error: ${response.statusText}`);
@@ -56,7 +49,7 @@ export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
 
         return data;
     } catch (error) {
-        console.error('Failed to fetch from ExerciseDB:', error);
+        console.error('Failed to fetch from Free Exercise DB:', error);
         return [];
     }
 };
@@ -65,26 +58,34 @@ export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
 export const mapApiToInternal = (apiData: ApiExercise[]): Exercise[] => {
     return apiData.map(ex => ({
         id: ex.id,
-        name: ex.name.charAt(0).toUpperCase() + ex.name.slice(1),
-        equipment: ex.equipment.charAt(0).toUpperCase() + ex.equipment.slice(1),
-        category: mapTargetToCategory(ex.bodyPart, ex.target),
-        muscleGroup: ex.target,
-        gifUrl: ex.gifUrl
+        name: ex.name,
+        equipment: normalizeEquipment(ex.equipment),
+        category: mapTargetToCategory(ex.primaryMuscles[0] || '', ex.category),
+        muscleGroup: ex.primaryMuscles[0] ? capitalize(ex.primaryMuscles[0]) : 'Full Body',
+        gifUrl: ex.images && ex.images.length > 0 ? `${IMAGE_BASE_URL}${ex.images[0]}` : undefined
     }));
 };
 
-const mapTargetToCategory = (bodyPart: string, target: string): any => {
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const normalizeEquipment = (eq: string): string => {
+    if (!eq) return 'Bodyweight';
+    if (eq === 'body only') return 'Bodyweight';
+    return capitalize(eq);
+};
+
+const mapTargetToCategory = (muscle: string, category: string): any => {
     const pushMuscles = ['chest', 'shoulders', 'triceps'];
-    const pullMuscles = ['back', 'lats', 'biceps', 'trapezius'];
-    const legMuscles = ['upper legs', 'lower legs', 'glutes', 'quadriceps', 'hamstrings', 'calves'];
-    const coreMuscles = ['waist', 'abs'];
+    const pullMuscles = ['lats', 'middle back', 'lower back', 'biceps', 'traps', 'forearms'];
+    const legMuscles = ['quadriceps', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors'];
+    const coreMuscles = ['abdominals'];
     const cardio = ['cardio'];
 
-    if (pushMuscles.some(m => bodyPart.includes(m) || target.includes(m))) return 'Push';
-    if (pullMuscles.some(m => bodyPart.includes(m) || target.includes(m))) return 'Pull';
-    if (legMuscles.some(m => bodyPart.includes(m) || target.includes(m))) return 'Legs';
-    if (coreMuscles.some(m => bodyPart.includes(m) || target.includes(m))) return 'Core';
-    if (cardio.some(m => bodyPart.includes(m) || target.includes(m))) return 'Cardio';
+    if (pushMuscles.includes(muscle)) return 'Push';
+    if (pullMuscles.includes(muscle)) return 'Pull';
+    if (legMuscles.includes(muscle)) return 'Legs';
+    if (coreMuscles.includes(muscle)) return 'Core';
+    if (category === 'cardio') return 'Cardio';
 
     return 'Full Body';
 };
