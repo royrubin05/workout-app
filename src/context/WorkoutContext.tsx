@@ -36,23 +36,40 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
+    const [apiExercises, setApiExercises] = useState<Exercise[]>([]);
 
     // Load from storage on mount
     useEffect(() => {
-        const loaded = loadFromStorage();
-        if (loaded) {
-            const today = new Date().toDateString();
-            const isCompleted = loaded.history?.some((h: WorkoutHistory) => new Date(h.date).toDateString() === today);
+        const init = async () => {
+            // Load Storage
+            const loaded = loadFromStorage();
+            if (loaded) {
+                const today = new Date().toDateString();
+                const isCompleted = loaded.history?.some((h: WorkoutHistory) => new Date(h.date).toDateString() === today);
 
-            setState(prev => ({
-                ...prev,
-                ...loaded,
-                completedToday: isCompleted || false,
-                // Ensure split exists if loading old data
-                currentSplit: loaded.currentSplit || 'Push'
-            }));
-        }
-        setIsLoaded(true);
+                setState(prev => ({
+                    ...prev,
+                    ...loaded,
+                    completedToday: isCompleted || false,
+                    currentSplit: loaded.currentSplit || 'Push'
+                }));
+            }
+
+            // Load API Data
+            try {
+                const { fetchExercisesFromAPI, mapApiToInternal } = await import('../services/exerciseDB');
+                const apiData = await fetchExercisesFromAPI();
+                if (apiData.length > 0) {
+                    setApiExercises(mapApiToInternal(apiData));
+                }
+            } catch (e) {
+                console.error("Failed to load API exercises", e);
+            }
+
+            setIsLoaded(true);
+        };
+
+        init();
     }, []);
 
     // Save to storage on change
@@ -74,12 +91,17 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const userEq = eqString.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
         if (!userEq.includes('bodyweight')) userEq.push('bodyweight');
 
-        return EXERCISES.filter(ex => {
+        // Merge Local + API
+        const allExercises = [...EXERCISES, ...apiExercises];
+
+        // Deduplicate by name (prefer API version for GIF)
+        const uniqueExercises = Array.from(new Map(allExercises.map(item => [item.name, item])).values());
+
+        return uniqueExercises.filter(ex => {
             // Filter by Category (Split)
             if (category && ex.category !== category && category !== 'Full Body') {
                 return false;
             }
-
             const req = ex.equipment.toLowerCase();
             const requirements = req.split(',').map(r => r.trim());
             return requirements.every(r => userEq.some(u => u.includes(r) || r.includes(u)));

@@ -50,12 +50,16 @@ export const Home: React.FC = () => {
                             transition={{ delay: index * 0.05 }}
                             className="glass-card p-4 flex items-center gap-4"
                         >
-                            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
-                                {index + 1}
+                            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex-shrink-0 flex items-center justify-center text-blue-400 font-bold text-sm overflow-hidden">
+                                {exercise.gifUrl ? (
+                                    <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <span>{index + 1}</span>
+                                )}
                             </div>
-                            <div>
+                            <div className="flex-1">
                                 <h4 className="font-semibold text-lg">{exercise.name}</h4>
-                                <p className="text-sm text-slate-400">{exercise.equipment}</p>
+                                <p className="text-sm text-slate-400">{exercise.equipment} • {exercise.muscleGroup}</p>
                             </div>
                         </motion.div>
                     ))}
