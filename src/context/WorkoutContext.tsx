@@ -112,44 +112,51 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         mappedItems.add('bodyweight');
 
         rawItems.forEach(item => {
-            // Direct match
+            // Direct match (cleaned)
             mappedItems.add(item);
+            mappedItems.add(item.replace(/\s+/g, '')); // Add "kettlebells" from "kettle bells"
 
             // Synonyms & Inferences
-            if (item.includes('dumbbell') || item.includes('dumbell') || item.includes('weights')) {
+            if (item.includes('dumb') || item.includes('weight')) {
                 mappedItems.add('dumbbell');
+                mappedItems.add('dumbbells');
             }
-            if (item.includes('barbell') || item.includes('bar') || item.includes('weights')) {
+            if (item.includes('bar') || item.includes('weight')) {
                 mappedItems.add('barbell');
                 mappedItems.add('ez curl bar');
-                mappedItems.add('e-z curl bar');
+                mappedItems.add('ez bar');
             }
-            if (item.includes('kettlebell')) {
+            if (item.includes('kettle')) {
+                mappedItems.add('kettlebell');
                 mappedItems.add('kettlebells');
             }
-            if (item.includes('cable') || item.includes('pulley')) {
+            if (item.includes('cable') || item.includes('pulley') || item.includes('rope')) {
                 mappedItems.add('cable');
+                mappedItems.add('cables');
             }
-            if (item.includes('machine') || item.includes('gym')) {
+            if (item.includes('machine') || item.includes('gym') || item.includes('pec')) {
                 mappedItems.add('machine');
-                mappedItems.add('cable');
                 mappedItems.add('smith machine');
             }
             if (item.includes('band') || item.includes('resistance')) {
                 mappedItems.add('bands');
+                mappedItems.add('band');
             }
             if (item.includes('ball') || item.includes('medicine')) {
                 mappedItems.add('medicine ball');
                 mappedItems.add('exercise ball');
             }
             if (item.includes('bench')) {
-                // Bench enables specific dumbbell/barbell moves, but doesn't map to a category directly in this API
-                // The API uses 'dumbbell' or 'barbell' as the equipment, not 'bench'.
-                // So we don't need to add 'bench' to the equipment list for matching, 
-                // but we assume if they have dumbbells + bench, they can do bench press.
+                mappedItems.add('bench');
             }
-            if (item.includes('pull up') || item.includes('pull-up') || item.includes('chin up')) {
-                // API usually classifies these as 'body only' or 'body weight'
+            if (item.includes('box') || item.includes('step')) {
+                mappedItems.add('box');
+            }
+            if (item.includes('plate')) {
+                mappedItems.add('plate');
+            }
+            if (item.includes('pull') && (item.includes('up') || item.includes('bar'))) {
+                mappedItems.add('pull-up bar');
             }
         });
 
