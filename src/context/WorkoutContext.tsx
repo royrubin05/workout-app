@@ -190,23 +190,23 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const getSlots = (split: string) => {
             if (split === 'Push') {
                 return [
-                    { type: 'Compound', muscle: 'Chest', count: 1 },      // e.g. Bench Press
-                    { type: 'Compound', muscle: 'Shoulders', count: 1 },  // e.g. Overhead Press
+                    { type: 'Compound', muscle: 'Chest', count: 2 },      // e.g. Bench Press, Incline
+                    { type: 'Compound', muscle: 'Shoulders', count: 2 },  // e.g. Overhead Press, Arnold
                     { type: 'Isolation', muscle: 'Chest', count: 1 },     // e.g. Flys
                     { type: 'Isolation', muscle: 'Shoulders', count: 1 }, // e.g. Lateral Raises
-                    { type: 'Isolation', muscle: 'Triceps', count: 2 },   // e.g. Extensions
+                    { type: 'Isolation', muscle: 'Triceps', count: 2 },   // e.g. Extensions, Pushdowns
                 ];
             } else if (split === 'Pull') {
                 return [
-                    { type: 'Compound', muscle: 'Back', count: 2 },       // e.g. Pull-ups, Rows
+                    { type: 'Compound', muscle: 'Back', count: 3 },       // e.g. Pull-ups, Rows, Lat Pulldowns
                     { type: 'Isolation', muscle: 'Rear Delts', count: 1 },// e.g. Face Pulls
-                    { type: 'Isolation', muscle: 'Biceps', count: 2 },    // e.g. Curls
+                    { type: 'Isolation', muscle: 'Biceps', count: 3 },    // e.g. Curls, Hammer, Preacher
                     { type: 'Isolation', muscle: 'Traps', count: 1 },     // e.g. Shrugs
                 ];
             } else if (split === 'Legs') {
                 return [
-                    { type: 'Compound', muscle: 'Quads', count: 1 },      // e.g. Squat
-                    { type: 'Compound', muscle: 'Hamstrings', count: 1 }, // e.g. RDL
+                    { type: 'Compound', muscle: 'Quads', count: 2 },      // e.g. Squat, Leg Press
+                    { type: 'Compound', muscle: 'Hamstrings', count: 2 }, // e.g. RDL, Leg Curls
                     { type: 'Compound', muscle: 'Legs', count: 1 },       // e.g. Lunges
                     { type: 'Isolation', muscle: 'Quads', count: 1 },     // e.g. Extensions
                     { type: 'Isolation', muscle: 'Hamstrings', count: 1 },// e.g. Curls
@@ -215,12 +215,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             // Full Body Fallback
             return [
-                { type: 'Compound', muscle: 'Legs', count: 1 },
-                { type: 'Compound', muscle: 'Chest', count: 1 },
-                { type: 'Compound', muscle: 'Back', count: 1 },
+                { type: 'Compound', muscle: 'Legs', count: 2 },
+                { type: 'Compound', muscle: 'Chest', count: 2 },
+                { type: 'Compound', muscle: 'Back', count: 2 },
                 { type: 'Compound', muscle: 'Shoulders', count: 1 },
                 { type: 'Isolation', muscle: 'Arms', count: 1 },
-                { type: 'Isolation', muscle: 'Core', count: 1 },
             ];
         };
 

@@ -26,6 +26,12 @@ export const Home: React.FC = () => {
                 <div>
                     <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
                         Today's Focus: <span className="text-white font-bold">{currentSplit}</span>
+                        <span className="text-slate-400 text-xs ml-2 normal-case tracking-normal">
+                            {currentSplit === 'Push' && '(Chest, Shoulders, Triceps)'}
+                            {currentSplit === 'Pull' && '(Back, Biceps, Rear Delts)'}
+                            {currentSplit === 'Legs' && '(Quads, Hamstrings, Calves)'}
+                            {currentSplit === 'Full Body' && '(Total Body)'}
+                        </span>
                     </h2>
                     <h3 className="text-2xl font-bold text-white">
                         {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
