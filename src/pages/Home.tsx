@@ -4,7 +4,7 @@ import { CheckCircle2, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const Home: React.FC = () => {
-    const { dailyWorkout, completedToday, completeWorkout, refreshWorkout } = useWorkout();
+    const { dailyWorkout, completedToday, completeWorkout, refreshWorkout, currentSplit } = useWorkout();
 
     if (completedToday) {
         return (
@@ -24,7 +24,9 @@ export const Home: React.FC = () => {
         <div>
             <div className="flex justify-between items-end mb-6">
                 <div>
-                    <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">Today's Routine</h2>
+                    <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
+                        Today's Focus: <span className="text-white font-bold">{currentSplit}</span>
+                    </h2>
                     <h3 className="text-2xl font-bold text-white">
                         {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </h3>

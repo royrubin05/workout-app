@@ -14,6 +14,7 @@ interface WorkoutState {
     lastWorkoutDate: string | null;
     history: WorkoutHistory[];
     completedToday: boolean;
+    currentSplit: 'Push' | 'Pull' | 'Legs' | 'Full Body';
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -31,6 +32,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastWorkoutDate: null,
         history: [],
         completedToday: false,
+        currentSplit: 'Push', // Default start
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
@@ -39,14 +41,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     useEffect(() => {
         const loaded = loadFromStorage();
         if (loaded) {
-            // Check if completed today
             const today = new Date().toDateString();
             const isCompleted = loaded.history?.some((h: WorkoutHistory) => new Date(h.date).toDateString() === today);
 
             setState(prev => ({
                 ...prev,
                 ...loaded,
-                completedToday: isCompleted || false
+                completedToday: isCompleted || false,
+                // Ensure split exists if loading old data
+                currentSplit: loaded.currentSplit || 'Push'
             }));
         }
         setIsLoaded(true);
@@ -67,29 +70,38 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     }, [state.lastWorkoutDate, state.equipment, state.completedToday]);
 
-    const getAvailableExercises = (eqString: string) => {
+    const getAvailableExercises = (eqString: string, category?: string) => {
         const userEq = eqString.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
         if (!userEq.includes('bodyweight')) userEq.push('bodyweight');
 
         return EXERCISES.filter(ex => {
+            // Filter by Category (Split)
+            if (category && ex.category !== category && category !== 'Full Body') {
+                return false;
+            }
+
             const req = ex.equipment.toLowerCase();
-            // Check if user has ALL required equipment for this exercise
-            // Actually, usually exercise equipment string is "Dumbbells, Bench" -> requires both.
-            // So we check if every item in req.split(',') is in userEq.
             const requirements = req.split(',').map(r => r.trim());
             return requirements.every(r => userEq.some(u => u.includes(r) || r.includes(u)));
         });
     };
 
     const generateWorkout = () => {
-        const available = getAvailableExercises(state.equipment);
+        // If we just completed a workout yesterday, rotate split. 
+        // But here we just want to generate for the *current* split state.
+        // The rotation happens on completion.
+
+        const available = getAvailableExercises(state.equipment, state.currentSplit);
         const count = 8;
 
-        // Random selection for now
-        // TODO: Implement smarter logic (balance categories)
-        const shuffled = [...available].sort(() => 0.5 - Math.random());
-        state.dailyWorkout = shuffled.slice(0, count);
-        state.lastWorkoutDate = new Date().toDateString();
+        // Fallback if not enough exercises for split (e.g. only have bands)
+        // If < 4 exercises, try Full Body or just all available
+        let pool = available;
+        if (pool.length < 4) {
+            pool = getAvailableExercises(state.equipment); // Fallback to all
+        }
+
+        const shuffled = [...pool].sort(() => 0.5 - Math.random());
 
         setState(prev => ({
             ...prev,
@@ -108,10 +120,16 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const today = new Date().toISOString();
         const newHistory = [...state.history, { date: today, exercises: state.dailyWorkout }];
 
+        // Rotate Split
+        const splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
+        const currentIdx = splits.indexOf(state.currentSplit as any);
+        const nextSplit = currentIdx !== -1 ? splits[(currentIdx + 1) % splits.length] : 'Push';
+
         setState(prev => ({
             ...prev,
             history: newHistory,
-            completedToday: true
+            completedToday: true,
+            currentSplit: nextSplit
         }));
     };
 
