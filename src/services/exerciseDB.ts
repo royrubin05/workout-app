@@ -9,26 +9,25 @@ const CACHE_DURATION = 1000 * 60 * 60 * 24 * 7; // 7 days
 export interface ApiExercise {
     id: string;
     name: string;
-    force: string;
-    level: string;
-    mechanic: string;
     equipment: string;
     primaryMuscles: string[];
-    secondaryMuscles: string[];
-    instructions: string[];
     category: string;
     images: string[];
 }
 
 export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
     // Check Cache
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_DURATION) {
-            console.log('Using cached API data');
-            return data;
+    try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+            const { data, timestamp } = JSON.parse(cached);
+            if (Date.now() - timestamp < CACHE_DURATION) {
+                console.log('Using cached API data');
+                return data;
+            }
         }
+    } catch (e) {
+        console.warn('Cache read error', e);
     }
 
     try {
@@ -39,13 +38,28 @@ export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
             throw new Error(`API Error: ${response.statusText}`);
         }
 
-        const data: ApiExercise[] = await response.json();
+        const fullData = await response.json();
 
-        // Cache result
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-            data,
-            timestamp: Date.now()
+        // Minify data before caching to save space (LocalStorage limit is ~5MB)
+        // We only keep fields we actually use
+        const data: ApiExercise[] = fullData.map((ex: any) => ({
+            id: ex.id,
+            name: ex.name,
+            equipment: ex.equipment,
+            primaryMuscles: ex.primaryMuscles,
+            category: ex.category,
+            images: ex.images
         }));
+
+        // Cache result (safely)
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+        } catch (e) {
+            console.warn('Failed to cache API data (likely quota exceeded):', e);
+        }
 
         return data;
     } catch (error) {
