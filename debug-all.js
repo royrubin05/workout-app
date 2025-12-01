@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 // --- CONFIG ---
 const SUPABASE_URL = 'https://abtxrknyybuxsnepnvmy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFidHhya255eWJ1eHNuZXBudm15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2MDU2MTYsImV4cCI6MjA4MDE4MTYxNn0.EpIDZbCulRyuCh4M2Jw9MQQ3GbmxAqXROghVZleqST0';
-const EMAIL = 'admin@fitgen.app';
+const EMAIL = 'roy.rubin@gmail.com';
 const PASSWORD = 'D*UWQufY_h.w8_2';
 
 const FREE_DB_URL = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/dist/exercises.json';

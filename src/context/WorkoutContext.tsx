@@ -46,7 +46,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     useEffect(() => {
         const init = async () => {
             // 1. Auto-Login (Hardcoded for Single User Mode)
-            const EMAIL = 'admin@fitgen.app';
+            const EMAIL = 'roy.rubin@gmail.com';
             const PASSWORD = 'D*UWQufY_h.w8_2'; // User provided DB password, using as Auth password
 
             let { data: { session } } = await supabase.auth.getSession();
