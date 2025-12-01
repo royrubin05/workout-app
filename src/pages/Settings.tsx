@@ -10,6 +10,7 @@ export const Settings: React.FC = () => {
     const [input, setInput] = useState(equipment);
     const [showModal, setShowModal] = useState(false);
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
+    const [previewCount, setPreviewCount] = useState(0);
 
     useEffect(() => {
         // Calculate preview of available exercises
