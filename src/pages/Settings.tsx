@@ -6,28 +6,19 @@ import { Save, Dumbbell, History, RefreshCw } from 'lucide-react';
 
 
 export const Settings: React.FC = () => {
-    const { equipment, updateEquipment, history, allExercises } = useWorkout();
+    const { equipment, updateEquipment, history, allExercises, getAvailableExercises } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [showModal, setShowModal] = useState(false);
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
     const [previewCount, setPreviewCount] = useState(0);
 
     useEffect(() => {
-        // Calculate preview of available exercises
-        const rawItems = input.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
-        const hasWeights = rawItems.some(i => i.includes('dumb') || i.includes('bar') || i.includes('weight'));
-
-        // Use allExercises from context (Local + API)
-        const filtered = allExercises.filter(ex => {
-            const req = ex.equipment.toLowerCase();
-            if (req.includes('body')) return true;
-            if (hasWeights && (req.includes('dumb') || req.includes('bar'))) return true;
-            return rawItems.some(u => req.includes(u));
-        });
+        // Use the robust matching logic from Context
+        const filtered = getAvailableExercises(input);
 
         setFilteredExercises(filtered);
         setPreviewCount(filtered.length);
-    }, [input, allExercises]);
+    }, [input, getAvailableExercises]);
 
     const handleSave = () => {
         updateEquipment(input);
@@ -125,12 +116,17 @@ export const Settings: React.FC = () => {
                         </div>
                         <div className="overflow-y-auto p-4 space-y-2">
                             {filteredExercises.map((ex, i) => (
-                                <div key={ex.id || i} className="p-3 bg-slate-800/50 rounded-lg flex justify-between items-center">
-                                    <div>
-                                        <div className="font-medium text-white">{ex.name}</div>
+                                <div key={ex.id || i} className="p-3 bg-slate-800/50 rounded-lg flex justify-between items-center gap-3">
+                                    {ex.gifUrl && (
+                                        <div className="w-10 h-10 rounded bg-slate-700 overflow-hidden flex-shrink-0">
+                                            <img src={ex.gifUrl} alt={ex.name} className="w-full h-full object-cover" />
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-white truncate">{ex.name}</div>
                                         <div className="text-xs text-slate-400">{ex.muscleGroup}</div>
                                     </div>
-                                    <div className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded">
+                                    <div className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded whitespace-nowrap">
                                         {ex.equipment}
                                     </div>
                                 </div>

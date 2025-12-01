@@ -22,6 +22,7 @@ interface WorkoutContextType extends WorkoutState {
     completeWorkout: () => void;
     refreshWorkout: () => void;
     allExercises: Exercise[];
+    getAvailableExercises: (eq: string, category?: string) => Exercise[];
 }
 
 // import { supabase } from '../services/supabase';
@@ -309,7 +310,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     return (
-        <WorkoutContext.Provider value={{ ...state, updateEquipment, completeWorkout, refreshWorkout, allExercises: getAllExercises() }}>
+        <WorkoutContext.Provider value={{
+            ...state,
+            updateEquipment,
+            completeWorkout,
+            refreshWorkout,
+            allExercises: getAllExercises(),
+            getAvailableExercises
+        }}>
             {!isLoaded ? (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
                     <div className="text-center">
