@@ -237,7 +237,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // We need to be flexible with matching.
                 const target = slot.muscle.toLowerCase();
                 const exMuscle = ex.muscleGroup.toLowerCase();
-                const exName = ex.name.toLowerCase();
 
                 // Muscle Match
                 const muscleMatch = exMuscle.includes(target) ||
