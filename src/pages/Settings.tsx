@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
 import { Save, Dumbbell, History, RefreshCw } from 'lucide-react';
-import { getAllExercises } from '../data/exercises';
+// import { getAllExercises } from '../data/exercises';
 
 
 
 export const Settings: React.FC = () => {
-    const { equipment, updateEquipment, history } = useWorkout();
+    const { equipment, updateEquipment, history, allExercises } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [previewCount, setPreviewCount] = useState(0);
 
@@ -17,23 +17,19 @@ export const Settings: React.FC = () => {
 
     useEffect(() => {
         // Calculate preview of available exercises
-        // We need to replicate the smart matching logic here roughly, or just use the count from context if we exposed it.
-        // For now, let's do a simplified version of the smart match
         const rawItems = input.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
         const hasWeights = rawItems.some(i => i.includes('dumb') || i.includes('bar') || i.includes('weight'));
 
-        const count = getAllExercises().filter(ex => {
+        // Use allExercises from context (Local + API)
+        const count = allExercises.filter(ex => {
             const req = ex.equipment.toLowerCase();
             if (req.includes('body')) return true;
             if (hasWeights && (req.includes('dumb') || req.includes('bar'))) return true;
             return rawItems.some(u => req.includes(u));
         }).length;
 
-        // Note: This is just a local preview estimate. The real count happens in Context.
-        // To be accurate, we should probably move this logic to a shared utility, 
-        // but for now, let's just show a "rough" number or rely on the user saving.
-        setPreviewCount(count > 0 ? count + 300 : 0); // Add estimate for API exercises
-    }, [input]);
+        setPreviewCount(count);
+    }, [input, allExercises]);
 
     const handleSave = () => {
         updateEquipment(input);
@@ -96,7 +92,7 @@ export const Settings: React.FC = () => {
                 <button
                     onClick={() => {
                         localStorage.removeItem('fitgen_api_cache_v3');
-                        localStorage.removeItem('workout-storage'); // Clear stale workout data
+                        localStorage.removeItem('fitgen_store_v1'); // Correct key
                         window.location.href = '/';
                     }}
                     className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -104,6 +100,14 @@ export const Settings: React.FC = () => {
                     <RefreshCw size={18} />
                     Reset App Data (Fix Images)
                 </button>
+            </div>
+
+            {/* Debug Section */}
+            <div className="glass-card p-6 mb-24">
+                <h3 className="text-xl font-bold text-white mb-4">Debug Info</h3>
+                <pre className="text-xs text-slate-400 overflow-auto max-h-40 bg-slate-900 p-2 rounded">
+                    {JSON.stringify(JSON.parse(localStorage.getItem('fitgen_store_v1') || '{}'), null, 2)}
+                </pre>
             </div>
         </div>
     );
