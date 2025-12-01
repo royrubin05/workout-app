@@ -23,6 +23,8 @@ interface WorkoutContextType extends WorkoutState {
     refreshWorkout: () => void;
 }
 
+import { supabase } from '../services/supabase';
+
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -37,25 +39,52 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const [isLoaded, setIsLoaded] = useState(false);
     const [apiExercises, setApiExercises] = useState<Exercise[]>([]);
+    const [user, setUser] = useState<any>(null);
 
-    // Load from storage on mount
+    // Initialize
     useEffect(() => {
         const init = async () => {
-            // Load Storage
-            const loaded = loadFromStorage();
-            if (loaded) {
+            // 1. Check Auth
+            const { data: { session } } = await supabase.auth.getSession();
+            setUser(session?.user ?? null);
+
+            // 2. Load Local Storage (Fast Fallback)
+            const localData = loadFromStorage();
+            if (localData) {
                 const today = new Date().toDateString();
-                const isCompleted = loaded.history?.some((h: WorkoutHistory) => new Date(h.date).toDateString() === today);
+                const isCompleted = localData.history?.some((h: WorkoutHistory) => new Date(h.date).toDateString() === today);
 
                 setState(prev => ({
                     ...prev,
-                    ...loaded,
+                    ...localData,
                     completedToday: isCompleted || false,
-                    currentSplit: loaded.currentSplit || 'Push'
+                    currentSplit: localData.currentSplit || 'Push'
                 }));
             }
 
-            // Load API Data
+            // 3. Load from Supabase (Source of Truth)
+            if (session?.user) {
+                try {
+                    // Load Settings
+                    const { data: settings } = await supabase
+                        .from('user_settings')
+                        .select('equipment')
+                        .eq('id', session.user.id)
+                        .single();
+
+                    if (settings) {
+                        setState(prev => ({ ...prev, equipment: settings.equipment }));
+                    }
+
+                    // Load History (Last workout)
+                    // This is simplified; normally we'd fetch the whole history or just the latest for logic
+                    // For now, let's keep history local-first but push to DB
+                } catch (e) {
+                    console.error('Supabase load error:', e);
+                }
+            }
+
+            // 4. Load API Data
             try {
                 const { fetchExercisesFromAPI, mapApiToInternal } = await import('../services/exerciseDB');
                 const apiData = await fetchExercisesFromAPI();
@@ -70,14 +99,34 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         };
 
         init();
+
+        // Auth Listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
-    // Save to storage on change
+    // Save to storage & Supabase on change
     useEffect(() => {
         if (isLoaded) {
             saveToStorage(state);
+
+            // Sync to Supabase if logged in
+            if (user) {
+                const sync = async () => {
+                    // Upsert Settings
+                    await supabase.from('user_settings').upsert({
+                        id: user.id,
+                        equipment: state.equipment,
+                        updated_at: new Date().toISOString()
+                    });
+                };
+                sync();
+            }
         }
-    }, [state, isLoaded]);
+    }, [state, isLoaded, user]);
 
     // Generate workout if needed
     useEffect(() => {
