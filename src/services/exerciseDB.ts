@@ -15,7 +15,10 @@ export interface ApiExercise {
 }
 
 export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
-    if (!RAPIDAPI_KEY) {
+    // Fallback to hardcoded key if env var is missing (User requested)
+    const apiKey = RAPIDAPI_KEY || 'e25b25db91msh15de2e9aee31d5fp1288f4jsneb3e3653385';
+
+    if (!apiKey) {
         console.warn('No RapidAPI Key found. Using local data only.');
         return [];
     }
@@ -34,7 +37,7 @@ export const fetchExercisesFromAPI = async (): Promise<ApiExercise[]> => {
         const response = await fetch(`https://${RAPIDAPI_HOST}/exercises?limit=1300`, {
             method: 'GET',
             headers: {
-                'x-rapidapi-key': RAPIDAPI_KEY,
+                'x-rapidapi-key': apiKey,
                 'x-rapidapi-host': RAPIDAPI_HOST,
             },
         });
