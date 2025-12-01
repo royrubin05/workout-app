@@ -21,7 +21,6 @@ interface WorkoutContextType extends WorkoutState {
     updateEquipment: (eq: string) => void;
     completeWorkout: () => void;
     refreshWorkout: () => void;
-    refreshWorkout: () => void;
 }
 
 // import { supabase } from '../services/supabase';

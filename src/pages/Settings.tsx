@@ -6,7 +6,7 @@ import { getAllExercises } from '../data/exercises';
 
 
 export const Settings: React.FC = () => {
-    const { equipment, updateEquipment, history, user } = useWorkout();
+    const { equipment, updateEquipment, history } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [previewCount, setPreviewCount] = useState(0);
 
@@ -88,18 +88,7 @@ export const Settings: React.FC = () => {
             <div className="glass-card p-6 mb-24">
                 <h3 className="text-xl font-bold text-white mb-4">Account</h3>
 
-                {/* Connection Status */}
-                <div className="flex items-center gap-2 mb-4 p-3 bg-slate-800/50 rounded-lg">
-                    <div className={`w-3 h-3 rounded-full ${user ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'}`}></div>
-                    <div className="flex-1">
-                        <div className="text-sm font-medium text-white">
-                            {user ? 'Connected to Cloud' : 'Offline / Sync Error'}
-                        </div>
-                        <div className="text-xs text-slate-400">
-                            {user ? 'Your data is safe.' : 'Data not saving to cloud. Check Supabase settings.'}
-                        </div>
-                    </div>
-                </div>
+
 
                 <div className="text-slate-400 text-sm mb-4">
                     Auto-synced to Cloud (Single User Mode)
