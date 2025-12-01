@@ -79,7 +79,7 @@ const mapTargetToCategory = (muscle: string, category: string): any => {
     const pullMuscles = ['lats', 'middle back', 'lower back', 'biceps', 'traps', 'forearms'];
     const legMuscles = ['quadriceps', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors'];
     const coreMuscles = ['abdominals'];
-    const cardio = ['cardio'];
+    const coreMuscles = ['abdominals'];
 
     if (pushMuscles.includes(muscle)) return 'Push';
     if (pullMuscles.includes(muscle)) return 'Pull';
