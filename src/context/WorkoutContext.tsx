@@ -162,11 +162,21 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Generate workout if needed
     useEffect(() => {
+        if (!isLoaded) return; // Wait for API and Storage to load
+
         const today = new Date().toDateString();
+        // Check if we already have a workout for today
+        // If we loaded from storage, lastWorkoutDate will be set.
+        // If it's not today, or if we haven't completed it, we might need to generate.
+
+        // But if we just loaded a workout from storage that IS for today, we shouldn't overwrite it.
+        // The issue is: if storage was empty (new user or reset), lastWorkoutDate is null.
+        // So we generate.
+
         if (state.lastWorkoutDate !== today && !state.completedToday) {
             generateWorkout();
         }
-    }, [state.lastWorkoutDate, state.equipment, state.completedToday]);
+    }, [isLoaded, state.lastWorkoutDate, state.equipment, state.completedToday]);
 
     const getAvailableExercises = (eqString: string, category?: string) => {
         const userEq = eqString.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
@@ -242,7 +252,16 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return (
         <WorkoutContext.Provider value={{ ...state, updateEquipment, completeWorkout, refreshWorkout }}>
-            {children}
+            {!isLoaded ? (
+                <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+                    <div className="text-center">
+                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                        <p className="text-slate-400">Loading exercises...</p>
+                    </div>
+                </div>
+            ) : (
+                children
+            )}
         </WorkoutContext.Provider>
     );
 };
