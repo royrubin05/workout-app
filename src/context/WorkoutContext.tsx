@@ -106,13 +106,64 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const connectToCloud = async () => {
             try {
                 // 1. Auto-Login
-                const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                let authData = null;
+                let authError = null;
+
+                ({ data: authData, error: authError } = await supabase.auth.signInWithPassword({
                     email: 'roy.rubin@gmail.com',
                     password: 'password123',
-                });
+                }));
 
                 if (authError) {
-                    console.warn('Supabase Login Failed (Offline Mode):', authError.message);
+                    console.warn('Supabase Login Failed:', authError.message);
+
+                    // Try Auto-Signup if login fails
+                    if (authError.message.includes('Invalid login credentials')) {
+                        console.log('⚠️ Attempting Auto-Signup...');
+                        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                            email: 'roy.rubin@gmail.com',
+                            password: 'password123',
+                        });
+
+                        if (signUpError) {
+                            console.error('Auto-Signup Failed:', signUpError.message);
+                            setState(prev => ({
+                                ...prev,
+                                connectionStatus: 'disconnected',
+                                connectionError: `Login & Signup Failed: ${signUpError.message}`
+                            }));
+                            return;
+                        }
+
+                        // If signup worked, we are logged in!
+                        // But we might need to wait for session? 
+                        // Usually signUp returns session if email confirmation is off.
+                        if (signUpData.session) {
+                            console.log('✅ Auto-Signup Successful!');
+                            // Proceed to load data (which will be empty)
+                            // We need to update authData to use this new session
+                            // Actually, let's just let the flow continue or recurse?
+                            // Simplest is to just set userId here.
+                            const userId = signUpData.user?.id;
+                            if (userId) {
+                                // Proceed to sync (skip load since it's new)
+                                setState(prev => ({
+                                    ...prev,
+                                    connectionStatus: 'connected',
+                                    lastSyncTime: new Date().toLocaleTimeString()
+                                }));
+                                return;
+                            }
+                        } else {
+                            setState(prev => ({
+                                ...prev,
+                                connectionStatus: 'disconnected',
+                                connectionError: 'Signup successful but email confirmation required.'
+                            }));
+                            return;
+                        }
+                    }
+
                     setState(prev => ({
                         ...prev,
                         connectionStatus: 'disconnected',
