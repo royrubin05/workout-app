@@ -538,6 +538,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
     };
 
+    const restoreExercise = (exerciseName: string) => {
+        setState(prev => ({
+            ...prev,
+            excludedExercises: prev.excludedExercises.filter(n => n !== exerciseName)
+        }));
+    };
+
     const toggleBodyweight = () => {
         setState(prev => ({ ...prev, includeBodyweight: !prev.includeBodyweight }));
     };
