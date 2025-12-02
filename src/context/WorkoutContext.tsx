@@ -17,6 +17,7 @@ interface WorkoutState {
     currentSplit: 'Push' | 'Pull' | 'Legs' | 'Full Body';
     excludedExercises: string[];
     connectionStatus: 'connected' | 'disconnected' | 'checking';
+    connectionError: string | null;
     lastSyncTime: string | null;
 }
 
@@ -44,6 +45,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         currentSplit: 'Push', // Default start
         excludedExercises: [],
         connectionStatus: 'checking',
+        connectionError: null,
         lastSyncTime: null
     });
 
@@ -111,7 +113,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 if (authError) {
                     console.warn('Supabase Login Failed (Offline Mode):', authError.message);
-                    setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+                    setState(prev => ({
+                        ...prev,
+                        connectionStatus: 'disconnected',
+                        connectionError: authError.message
+                    }));
                     return;
                 }
 
@@ -138,9 +144,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     };
                 });
 
-            } catch (e) {
+            } catch (e: any) {
                 console.error('Cloud Connection Error:', e);
-                setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+                setState(prev => ({
+                    ...prev,
+                    connectionStatus: 'disconnected',
+                    connectionError: e.message || 'Unknown connection error'
+                }));
             }
         };
 

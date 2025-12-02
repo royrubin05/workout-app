@@ -6,7 +6,7 @@ import { Save, Dumbbell, History, RefreshCw } from 'lucide-react';
 
 
 export const Settings: React.FC = () => {
-    const { equipment, updateEquipment, history, allExercises, getAvailableExercises, excludedExercises, restoreExercise, connectionStatus, lastSyncTime } = useWorkout();
+    const { equipment, updateEquipment, history, allExercises, getAvailableExercises, excludedExercises, restoreExercise, connectionStatus, connectionError, lastSyncTime } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [showModal, setShowModal] = useState(false);
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
@@ -39,7 +39,9 @@ export const Settings: React.FC = () => {
                     {connectionStatus === 'connected' ? (
                         <span>Synced {lastSyncTime && `• ${lastSyncTime}`}</span>
                     ) : (
-                        <span>Offline</span>
+                        <span title={connectionError || 'Unknown Error'}>
+                            Offline {connectionError && `(${connectionError})`}
+                        </span>
                     )}
                 </div>
             </div>
