@@ -83,7 +83,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             // Cloud Sync
             if (supabase) {
-                const user = (supabase.auth as any).getUser(); // Check current user
+                // const user = (supabase.auth as any).getUser(); // Check current user
                 // We'll use a separate effect for auth, but here we just fire and forget
                 // Actually, we need the user ID. Let's rely on the auth effect below.
             }
@@ -115,24 +115,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     .eq('id', userId)
                     .single();
 
-                const { data: historyData } = await supabase
-                    .from('workout_history')
-                    .select('*')
-                    .eq('user_id', userId);
-
                 // 3. Merge/Update State
                 setState(prev => {
                     const newEquipment = settingsData?.equipment || prev.equipment;
-                    // Merge history (simple concatenation + dedup could be better, but let's just prefer cloud if exists?)
-                    // For now, let's just use cloud history if it exists and is longer?
-                    // Or just append? Let's keep it simple: Cloud is truth if connected.
-
-                    // Actually, let's just update if we found data.
                     return {
                         ...prev,
                         equipment: newEquipment,
-                        // Parse history if needed, assuming it matches our structure
-                        // history: historyData ? ... : prev.history
                     };
                 });
 
