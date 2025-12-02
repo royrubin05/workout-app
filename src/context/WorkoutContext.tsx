@@ -172,6 +172,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     return;
                 }
 
+                if (!authData?.user) {
+                    console.error('Login successful but no user returned');
+                    return;
+                }
+
                 const userId = authData.user.id;
                 console.log('☁️ Connected to Cloud as:', authData.user.email);
 
