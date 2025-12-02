@@ -127,10 +127,16 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                         if (signUpError) {
                             console.error('Auto-Signup Failed:', signUpError.message);
+
+                            let helpfulMessage = `Login & Signup Failed: ${signUpError.message}`;
+                            if (signUpError.message.includes('already registered')) {
+                                helpfulMessage = 'Account stuck. Please DELETE user in Supabase Dashboard -> Users.';
+                            }
+
                             setState(prev => ({
                                 ...prev,
                                 connectionStatus: 'disconnected',
-                                connectionError: `Login & Signup Failed: ${signUpError.message}`
+                                connectionError: helpfulMessage
                             }));
                             return;
                         }
