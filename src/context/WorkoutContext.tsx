@@ -350,11 +350,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Smart Equipment Check
             const requiredEq = ex.equipment.toLowerCase();
 
-            // Special Case: "Body Only" / "Body Weight"
-            if (requiredEq === 'body only' || requiredEq === 'body weight' || requiredEq === 'bodyweight') {
-                return true;
-            }
-
             // Check if ANY of the user's mapped equipment matches the requirement
             // The API usually lists a single equipment type per exercise (e.g. "dumbbell")
             return userEq.some(u => requiredEq.includes(u) || u.includes(requiredEq));
