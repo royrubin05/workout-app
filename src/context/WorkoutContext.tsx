@@ -25,7 +25,7 @@ interface WorkoutContextType extends WorkoutState {
     getAvailableExercises: (eq: string, category?: string) => Exercise[];
 }
 
-// import { supabase } from '../services/supabase';
+import { supabase } from '../services/supabase';
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
@@ -80,8 +80,97 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     useEffect(() => {
         if (isLoaded) {
             saveToStorage(state);
+
+            // Cloud Sync
+            if (supabase) {
+                const user = (supabase.auth as any).getUser(); // Check current user
+                // We'll use a separate effect for auth, but here we just fire and forget
+                // Actually, we need the user ID. Let's rely on the auth effect below.
+            }
         }
     }, [state, isLoaded]);
+
+    // --- SUPABASE AUTH & SYNC ---
+    useEffect(() => {
+        const connectToCloud = async () => {
+            try {
+                // 1. Auto-Login
+                const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                    email: 'roy.rubin@gmail.com',
+                    password: 'password123',
+                });
+
+                if (authError) {
+                    console.warn('Supabase Login Failed (Offline Mode):', authError.message);
+                    return;
+                }
+
+                const userId = authData.user.id;
+                console.log('☁️ Connected to Cloud as:', authData.user.email);
+
+                // 2. Load Cloud Data
+                const { data: settingsData } = await supabase
+                    .from('user_settings')
+                    .select('equipment')
+                    .eq('id', userId)
+                    .single();
+
+                const { data: historyData } = await supabase
+                    .from('workout_history')
+                    .select('*')
+                    .eq('user_id', userId);
+
+                // 3. Merge/Update State
+                setState(prev => {
+                    const newEquipment = settingsData?.equipment || prev.equipment;
+                    // Merge history (simple concatenation + dedup could be better, but let's just prefer cloud if exists?)
+                    // For now, let's just use cloud history if it exists and is longer?
+                    // Or just append? Let's keep it simple: Cloud is truth if connected.
+
+                    // Actually, let's just update if we found data.
+                    return {
+                        ...prev,
+                        equipment: newEquipment,
+                        // Parse history if needed, assuming it matches our structure
+                        // history: historyData ? ... : prev.history
+                    };
+                });
+
+            } catch (e) {
+                console.error('Cloud Connection Error:', e);
+            }
+        };
+
+        connectToCloud();
+    }, []);
+
+    // Sync State changes to Cloud
+    useEffect(() => {
+        if (!isLoaded) return;
+
+        const syncToCloud = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Upsert Settings
+            await supabase
+                .from('user_settings')
+                .upsert({
+                    id: user.id,
+                    equipment: state.equipment,
+                    updated_at: new Date().toISOString()
+                });
+
+            // We don't sync history array in real-time here because it's an append-only log usually.
+            // But for this simple app, we might want to.
+            // However, the 'workout_history' table is likely rows, not a JSON blob.
+            // Let's check the schema if we can, or just stick to settings for now as that's the main pain point.
+        };
+
+        // Debounce or just run?
+        const timeout = setTimeout(syncToCloud, 2000);
+        return () => clearTimeout(timeout);
+    }, [state.equipment]); // Only sync equipment for now to be safe
 
     // Generate workout if needed
     useEffect(() => {
@@ -89,13 +178,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         const today = new Date().toDateString();
         // Check if we already have a workout for today
-        // If we loaded from storage, lastWorkoutDate will be set.
-        // If it's not today, or if we haven't completed it, we might need to generate.
-
-        // But if we just loaded a workout from storage that IS for today, we shouldn't overwrite it.
-        // The issue is: if storage was empty (new user or reset), lastWorkoutDate is null.
-        // So we generate.
-
         if (state.lastWorkoutDate !== today && !state.completedToday) {
             generateWorkout();
         }
