@@ -172,7 +172,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Deduplicate by name (prefer API version for GIF)
         const uniqueExercises = Array.from(new Map(allExercises.map(item => [item.name, item])).values());
 
-        return uniqueExercises.filter(ex => {
+        const filtered = uniqueExercises.filter(ex => {
             // Filter by Category (Split)
             if (category && ex.category !== category && category !== 'Full Body') {
                 return false;
@@ -190,6 +190,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // The API usually lists a single equipment type per exercise (e.g. "dumbbell")
             return userEq.some(u => requiredEq.includes(u) || u.includes(requiredEq));
         });
+
+        console.log(`getAvailableExercises('${eqString}') -> userEq:`, userEq, 'Count:', uniqueExercises.length, '->', filtered.length);
+        return filtered;
     };
 
     const generateWorkout = () => {
