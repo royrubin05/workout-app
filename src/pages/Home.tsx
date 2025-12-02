@@ -1,10 +1,10 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { CheckCircle2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, RefreshCw, MinusCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const Home: React.FC = () => {
-    const { dailyWorkout, completedToday, refreshWorkout, currentSplit } = useWorkout();
+    const { dailyWorkout, completedToday, refreshWorkout, currentSplit, excludeExercise } = useWorkout();
 
     if (completedToday) {
         return (
@@ -74,6 +74,13 @@ export const Home: React.FC = () => {
                                     </span>
                                 </div>
                             </div>
+                            <button
+                                onClick={() => excludeExercise(exercise.name)}
+                                className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                                title="Exclude Exercise"
+                            >
+                                <MinusCircle size={24} />
+                            </button>
                         </motion.div>
                     ))}
                 </AnimatePresence>

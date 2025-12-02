@@ -15,6 +15,7 @@ interface WorkoutState {
     history: WorkoutHistory[];
     completedToday: boolean;
     currentSplit: 'Push' | 'Pull' | 'Legs' | 'Full Body';
+    excludedExercises: string[];
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -23,6 +24,8 @@ interface WorkoutContextType extends WorkoutState {
     refreshWorkout: () => void;
     allExercises: Exercise[];
     getAvailableExercises: (eq: string, category?: string) => Exercise[];
+    excludeExercise: (exerciseName: string) => void;
+    restoreExercise: (exerciseName: string) => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -37,6 +40,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         history: [],
         completedToday: false,
         currentSplit: 'Push', // Default start
+        excludedExercises: [],
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
@@ -55,7 +59,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     ...prev,
                     ...localData,
                     completedToday: isCompleted || false,
-                    currentSplit: localData.currentSplit || 'Push'
+                    currentSplit: localData.currentSplit || 'Push',
+                    excludedExercises: localData.excludedExercises || []
                 }));
             }
 
@@ -111,16 +116,18 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // 2. Load Cloud Data
                 const { data: settingsData } = await supabase
                     .from('user_settings')
-                    .select('equipment')
+                    .select('equipment, excluded_exercises')
                     .eq('id', userId)
                     .single();
 
                 // 3. Merge/Update State
                 setState(prev => {
                     const newEquipment = settingsData?.equipment || prev.equipment;
+                    const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
                     return {
                         ...prev,
                         equipment: newEquipment,
+                        excludedExercises: newExcluded
                     };
                 });
 
@@ -146,6 +153,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 .upsert({
                     id: user.id,
                     equipment: state.equipment,
+                    excluded_exercises: state.excludedExercises,
                     updated_at: new Date().toISOString()
                 });
 
@@ -158,7 +166,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Debounce or just run?
         const timeout = setTimeout(syncToCloud, 2000);
         return () => clearTimeout(timeout);
-    }, [state.equipment]); // Only sync equipment for now to be safe
+    }, [state.equipment, state.excludedExercises]); // Sync on equipment or exclusion change
 
     // Generate workout if needed
     useEffect(() => {
@@ -313,6 +321,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         slots.forEach(slot => {
             // Get all candidates for this slot
             const candidates = getAvailableExercises(state.equipment).filter(ex => {
+                // Exclude banned exercises
+                if (state.excludedExercises.includes(ex.name)) return false;
+
                 // Match Muscle Group
                 // Note: Our data has 'muscleGroup' (e.g. Chest) and 'category' (e.g. Push)
                 // We need to be flexible with matching.
@@ -345,7 +356,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // 3. Fallback if slots didn't fill enough (e.g. limited equipment)
         if (selectedExercises.length < 8) {
             const remaining = getAvailableExercises(state.equipment, state.currentSplit)
-                .filter(ex => !usedNames.has(ex.name))
+                .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
                 .sort(() => 0.5 - Math.random())
                 .slice(0, 8 - selectedExercises.length);
             selectedExercises.push(...remaining);
@@ -389,6 +400,60 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return [...EXERCISES, ...apiExercises];
     };
 
+    const excludeExercise = (exerciseName: string) => {
+        setState(prev => {
+            const newExcluded = [...prev.excludedExercises, exerciseName];
+
+            // Replace in current workout if present
+            const currentWorkout = [...prev.dailyWorkout];
+            const index = currentWorkout.findIndex(ex => ex.name === exerciseName);
+
+            if (index !== -1) {
+                const removedEx = currentWorkout[index];
+                // Find replacement
+                const candidates = getAvailableExercises(prev.equipment)
+                    .filter(ex =>
+                        !newExcluded.includes(ex.name) &&
+                        !currentWorkout.some(w => w.name === ex.name) &&
+                        ex.muscleGroup === removedEx.muscleGroup
+                    );
+
+                if (candidates.length > 0) {
+                    // Pick random
+                    const replacement = candidates[Math.floor(Math.random() * candidates.length)];
+                    currentWorkout[index] = replacement;
+                } else {
+                    // If no direct muscle match, try same category/split? Or just remove?
+                    // Let's try to keep count same if possible, or just leave it empty?
+                    // For now, if no replacement, we might just have to shrink the workout or pick *any* available.
+                    // Let's pick any available that fits the split.
+                    const fallback = getAvailableExercises(prev.equipment, prev.currentSplit)
+                        .filter(ex => !newExcluded.includes(ex.name) && !currentWorkout.some(w => w.name === ex.name));
+
+                    if (fallback.length > 0) {
+                        currentWorkout[index] = fallback[Math.floor(Math.random() * fallback.length)];
+                    } else {
+                        // Worst case, remove it
+                        currentWorkout.splice(index, 1);
+                    }
+                }
+            }
+
+            return {
+                ...prev,
+                excludedExercises: newExcluded,
+                dailyWorkout: currentWorkout
+            };
+        });
+    };
+
+    const restoreExercise = (exerciseName: string) => {
+        setState(prev => ({
+            ...prev,
+            excludedExercises: prev.excludedExercises.filter(n => n !== exerciseName)
+        }));
+    };
+
     return (
         <WorkoutContext.Provider value={{
             ...state,
@@ -396,7 +461,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             completeWorkout,
             refreshWorkout,
             allExercises: getAllExercises(),
-            getAvailableExercises
+            getAvailableExercises,
+            excludeExercise,
+            restoreExercise
         }}>
             {!isLoaded ? (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">

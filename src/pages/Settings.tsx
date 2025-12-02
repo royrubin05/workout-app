@@ -6,7 +6,7 @@ import { Save, Dumbbell, History, RefreshCw } from 'lucide-react';
 
 
 export const Settings: React.FC = () => {
-    const { equipment, updateEquipment, history, allExercises, getAvailableExercises } = useWorkout();
+    const { equipment, updateEquipment, history, allExercises, getAvailableExercises, excludedExercises, restoreExercise } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [showModal, setShowModal] = useState(false);
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
@@ -70,6 +70,26 @@ export const Settings: React.FC = () => {
                     Save Settings
                 </button>
             </div>
+
+            {/* Excluded Exercises */}
+            {excludedExercises.length > 0 && (
+                <div className="glass-card p-6">
+                    <h3 className="text-xl font-bold text-white mb-4">Excluded Exercises</h3>
+                    <div className="space-y-2">
+                        {excludedExercises.map(name => (
+                            <div key={name} className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                                <span className="text-slate-300">{name}</span>
+                                <button
+                                    onClick={() => restoreExercise(name)}
+                                    className="text-xs px-3 py-1 bg-slate-700 hover:bg-blue-600 text-white rounded transition-colors"
+                                >
+                                    Restore
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="text-center text-xs text-slate-600 mt-8">
                 FitGen v1.0.0
