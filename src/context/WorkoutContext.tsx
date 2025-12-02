@@ -290,7 +290,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 mappedItems.add('dumbbell');
                 mappedItems.add('dumbbells');
             }
-            if (item.includes('bar') || item.includes('weight')) {
+            if (item.includes('bar') && !item.includes('cable') && !item.includes('pull')) {
                 mappedItems.add('barbell');
                 mappedItems.add('ez curl bar');
                 mappedItems.add('ez bar');
