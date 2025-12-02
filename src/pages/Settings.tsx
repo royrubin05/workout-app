@@ -6,7 +6,7 @@ import { Save, Dumbbell, History, RefreshCw } from 'lucide-react';
 
 
 export const Settings: React.FC = () => {
-    const { equipment, updateEquipment, history, allExercises, getAvailableExercises, excludedExercises, restoreExercise, connectionStatus, connectionError, lastSyncTime } = useWorkout();
+    const { equipment, updateEquipment, history, allExercises, getAvailableExercises, excludedExercises, restoreExercise, connectionStatus, connectionError, lastSyncTime, toggleBodyweight, includeBodyweight } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [showModal, setShowModal] = useState(false);
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
@@ -85,6 +85,30 @@ export const Settings: React.FC = () => {
                     <Save size={20} />
                     Save Settings
                 </button>
+            </div>
+
+            {/* Preferences */}
+            <div className="glass-card p-6">
+                <h3 className="text-xl font-bold text-white mb-4">Preferences</h3>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+                            <Dumbbell size={20} />
+                        </div>
+                        <div>
+                            <div className="font-medium text-white">Include Bodyweight Exercises</div>
+                            <div className="text-xs text-slate-400">Push-ups, Lunges, etc.</div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={toggleBodyweight}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${includeBodyweight ? 'bg-blue-500' : 'bg-slate-700'
+                            }`}
+                    >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${includeBodyweight ? 'left-7' : 'left-1'
+                            }`} />
+                    </button>
+                </div>
             </div>
 
             {/* Excluded Exercises */}
