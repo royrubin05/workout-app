@@ -16,6 +16,8 @@ interface WorkoutState {
     completedToday: boolean;
     currentSplit: 'Push' | 'Pull' | 'Legs' | 'Full Body';
     excludedExercises: string[];
+    connectionStatus: 'connected' | 'disconnected' | 'checking';
+    lastSyncTime: string | null;
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -41,6 +43,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         completedToday: false,
         currentSplit: 'Push', // Default start
         excludedExercises: [],
+        connectionStatus: 'checking',
+        lastSyncTime: null
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
@@ -107,6 +111,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 if (authError) {
                     console.warn('Supabase Login Failed (Offline Mode):', authError.message);
+                    setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
                     return;
                 }
 
@@ -127,12 +132,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     return {
                         ...prev,
                         equipment: newEquipment,
-                        excludedExercises: newExcluded
+                        excludedExercises: newExcluded,
+                        connectionStatus: 'connected',
+                        lastSyncTime: new Date().toLocaleTimeString()
                     };
                 });
 
             } catch (e) {
                 console.error('Cloud Connection Error:', e);
+                setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
             }
         };
 
@@ -156,6 +164,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     excluded_exercises: state.excludedExercises,
                     updated_at: new Date().toISOString()
                 });
+
+            setState(prev => ({ ...prev, lastSyncTime: new Date().toLocaleTimeString() }));
 
             // We don't sync history array in real-time here because it's an append-only log usually.
             // But for this simple app, we might want to.

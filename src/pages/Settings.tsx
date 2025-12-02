@@ -6,7 +6,7 @@ import { Save, Dumbbell, History, RefreshCw } from 'lucide-react';
 
 
 export const Settings: React.FC = () => {
-    const { equipment, updateEquipment, history, allExercises, getAvailableExercises, excludedExercises, restoreExercise } = useWorkout();
+    const { equipment, updateEquipment, history, allExercises, getAvailableExercises, excludedExercises, restoreExercise, connectionStatus, lastSyncTime } = useWorkout();
     const [input, setInput] = useState(equipment);
     const [showModal, setShowModal] = useState(false);
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
@@ -28,7 +28,21 @@ export const Settings: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold mb-6">Settings</h2>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Settings</h2>
+                <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border ${connectionStatus === 'connected'
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                    : 'bg-red-500/10 border-red-500/20 text-red-400'
+                    }`}>
+                    <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                        }`} />
+                    {connectionStatus === 'connected' ? (
+                        <span>Synced {lastSyncTime && `• ${lastSyncTime}`}</span>
+                    ) : (
+                        <span>Offline</span>
+                    )}
+                </div>
+            </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 gap-4">
