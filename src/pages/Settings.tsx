@@ -25,6 +25,7 @@ export const Settings: React.FC = () => {
     const [previewCount, setPreviewCount] = useState(0);
 
     const [viewingHistoryItem, setViewingHistoryItem] = useState<typeof history[0] | null>(null);
+    const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
 
     // Calculate preview count
     useEffect(() => {
