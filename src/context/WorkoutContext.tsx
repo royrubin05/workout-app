@@ -229,7 +229,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Sync State changes to Cloud
     useEffect(() => {
-        if (!isLoaded) return;
+        if (!isLoaded || state.connectionStatus === 'checking') return;
 
         const syncToCloud = async () => {
             const { data: { user } } = await supabase.auth.getUser();
