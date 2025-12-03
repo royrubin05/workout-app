@@ -351,11 +351,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             // Smart Equipment Check
-            const requiredEq = ex.equipment.toLowerCase();
-
-            // Check if ANY of the user's mapped equipment matches the requirement
-            // The API usually lists a single equipment type per exercise (e.g. "dumbbell")
-            // Smart Equipment Check
             const requiredEq = ex.equipment?.toLowerCase().trim();
             if (!requiredEq) return false;
 
