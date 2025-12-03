@@ -390,8 +390,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return filtered;
     };
 
-    const generateWorkout = () => {
+    const generateWorkout = (splitOverride?: string) => {
         // --- OPTIMAL PPL TEMPLATE LOGIC ---
+
+        const splitToUse = splitOverride || state.currentSplit;
 
         // 1. Define Slots for each split
         const getSlots = (split: string) => {
@@ -430,14 +432,27 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ];
         };
 
-        const slots = getSlots(state.currentSplit);
+        // 2. Select Exercises for each slot
         const selectedExercises: Exercise[] = [];
         const usedNames = new Set<string>();
+
+        // Get slots for CURRENT split
+        const slots = getSlots(splitToUse);
+
+        // Get ALL available exercises for this split (filtered by equipment & split)
+        // Note: getAvailableExercises filters by equipment. We need to filter by split manually or pass it?
+        // Actually getAvailableExercises takes (equipment, category).
+        // Let's map Split -> Category
+        const category = splitToUse === 'Push' ? 'Push' :
+            splitToUse === 'Pull' ? 'Pull' :
+                splitToUse === 'Legs' ? 'Legs' : 'Full Body';
+
+        const availableForSplit = getAvailableExercises(state.equipment, category);
 
         // 2. Fill Slots
         slots.forEach(slot => {
             // Get all candidates for this slot
-            const candidates = getAvailableExercises(state.equipment).filter(ex => {
+            const candidates = availableForSplit.filter(ex => {
                 // Exclude banned exercises
                 if (state.excludedExercises.includes(ex.name)) return false;
 
@@ -472,7 +487,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 3. Fallback if slots didn't fill enough (e.g. limited equipment)
         if (selectedExercises.length < 8) {
-            const remaining = getAvailableExercises(state.equipment, state.currentSplit)
+            const remaining = getAvailableExercises(state.equipment, category)
                 .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
                 .sort(() => 0.5 - Math.random())
                 .slice(0, 8 - selectedExercises.length);
