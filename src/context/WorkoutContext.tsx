@@ -266,7 +266,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (state.lastWorkoutDate !== today && !state.completedToday) {
             generateWorkout();
         }
-    }, [isLoaded, state.lastWorkoutDate, state.equipment, state.completedToday]);
+        if (state.lastWorkoutDate !== today && !state.completedToday) {
+            generateWorkout();
+        }
+    }, [isLoaded, state.lastWorkoutDate, state.equipment, state.completedToday, state.includeBodyweight]);
 
     // --- SMART MATCHING LOGIC ---
     const normalizeUserEquipment = (userInput: string): string[] => {
@@ -352,7 +355,17 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             // Check if ANY of the user's mapped equipment matches the requirement
             // The API usually lists a single equipment type per exercise (e.g. "dumbbell")
-            return userEq.some(u => requiredEq.includes(u) || u.includes(requiredEq));
+            // Smart Equipment Check
+            const requiredEq = ex.equipment?.toLowerCase().trim();
+            if (!requiredEq) return false;
+
+            // Check if ANY of the user's mapped equipment matches the requirement
+            // The API usually lists a single equipment type per exercise (e.g. "dumbbell")
+            return userEq.some(u => {
+                // Exact match or substring match (but be careful with short strings)
+                if (requiredEq.length < 3) return u === requiredEq;
+                return requiredEq.includes(u) || u.includes(requiredEq);
+            });
         });
 
         console.log(`getAvailableExercises('${eqString}') -> userEq:`, userEq, 'Count:', uniqueExercises.length, '->', filtered.length);

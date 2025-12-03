@@ -23,6 +23,8 @@ export const Settings: React.FC = () => {
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
     const [previewCount, setPreviewCount] = useState(0);
 
+    const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+
     // Calculate preview count
     useEffect(() => {
         const available = getAvailableExercises(input);
@@ -32,11 +34,24 @@ export const Settings: React.FC = () => {
 
     const handleSave = () => {
         updateEquipment(input);
-        alert('Settings saved!');
+        setShowSaveConfirmation(true);
+        setTimeout(() => setShowSaveConfirmation(false), 2000);
     };
 
     return (
-        <div className="space-y-6 pb-24">
+        <div className="space-y-6 pb-24 relative">
+            {/* Save Confirmation Toast/Modal */}
+            {showSaveConfirmation && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="bg-green-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium">
+                        <div className="bg-white/20 p-1 rounded-full">
+                            <Save size={16} />
+                        </div>
+                        Settings Saved Successfully!
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-bold text-white">Settings</h1>
