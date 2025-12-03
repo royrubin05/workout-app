@@ -2,26 +2,40 @@ import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
 import { RefreshCw, MinusCircle, CheckCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
 export const Home: React.FC = () => {
     const { dailyWorkout, refreshWorkout, currentSplit, excludeExercise, completeWorkout, completedToday } = useWorkout();
+    const [showSuccessToast, setShowSuccessToast] = React.useState(false);
 
-    if (completedToday) {
-        return (
-            <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="glass-card p-8 text-center mt-10"
-            >
-                <CheckCircle2 size={80} className="text-emerald-400 mx-auto mb-6" />
-                <h2 className="text-2xl font-bold text-white mb-2">Workout Complete!</h2>
-                <p className="text-slate-400">Great job today. Come back tomorrow for a new routine.</p>
-            </motion.div>
-        );
-    }
+    const handleComplete = () => {
+        completeWorkout();
+        setShowSuccessToast(true);
+        confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 }
+        });
+        setTimeout(() => setShowSuccessToast(false), 3000);
+    };
 
     return (
-        <div>
+        <div className="relative">
+            {/* Success Toast */}
+            <AnimatePresence>
+                {showSuccessToast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20, x: '-50%' }}
+                        animate={{ opacity: 1, y: 0, x: '-50%' }}
+                        exit={{ opacity: 0, y: -20, x: '-50%' }}
+                        className="fixed top-6 left-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium whitespace-nowrap"
+                    >
+                        <CheckCircle2 size={20} />
+                        Workout Logged Successfully!
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="flex justify-between items-end mb-6">
                 <div>
                     <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
@@ -90,11 +104,24 @@ export const Home: React.FC = () => {
 
                 {dailyWorkout.length > 0 && (
                     <button
-                        onClick={completeWorkout}
-                        className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 mt-8"
+                        onClick={handleComplete}
+                        disabled={completedToday}
+                        className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-8 ${completedToday
+                            ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
+                            : 'bg-green-500 hover:bg-green-600 text-white active:scale-95 shadow-green-500/20'
+                            }`}
                     >
-                        <CheckCircle size={24} />
-                        Complete Workout
+                        {completedToday ? (
+                            <>
+                                <CheckCircle2 size={24} />
+                                Workout Completed
+                            </>
+                        ) : (
+                            <>
+                                <CheckCircle size={24} />
+                                Complete Workout
+                            </>
+                        )}
                     </button>
                 )}
 

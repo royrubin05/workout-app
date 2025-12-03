@@ -263,14 +263,36 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (!isLoaded) return; // Wait for API and Storage to load
 
         const today = new Date().toDateString();
-        // Check if we already have a workout for today
-        if (state.lastWorkoutDate !== today && !state.completedToday) {
-            generateWorkout();
+
+
+        if (state.lastWorkoutDate !== today) {
+            // It's a new day!
+            let nextSplit = state.currentSplit;
+
+            // If we completed the last workout, rotate!
+            if (state.completedToday) {
+                const splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
+                const currentIdx = splits.indexOf(state.currentSplit as any);
+                nextSplit = currentIdx !== -1 ? splits[(currentIdx + 1) % splits.length] : 'Push';
+            }
+
+            // Update state first
+            setState(prev => ({
+                ...prev,
+                currentSplit: nextSplit,
+                completedToday: false,
+                lastWorkoutDate: today // Mark today as visited so we don't loop
+            }));
+
+            // Then generate (we need to pass the new split because state update is async)
+            // But generateWorkout reads from state... 
+            // We can modify generateWorkout to accept a split.
+            setTimeout(() => generateWorkout(nextSplit), 0);
+        } else if (!state.dailyWorkout.length) {
+            // If it's still the same day but no workout has been generated yet (e.g., initial load)
+            generateWorkout(state.currentSplit);
         }
-        if (state.lastWorkoutDate !== today && !state.completedToday) {
-            generateWorkout();
-        }
-    }, [isLoaded, state.lastWorkoutDate, state.equipment, state.completedToday, state.includeBodyweight]);
+    }, [isLoaded, state.lastWorkoutDate, state.completedToday, state.currentSplit, state.dailyWorkout.length]);
 
     // --- SMART MATCHING LOGIC ---
     const normalizeUserEquipment = (userInput: string): string[] => {
@@ -478,16 +500,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             exercises: state.dailyWorkout
         }];
 
-        // Rotate Split
-        const splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
-        const currentIdx = splits.indexOf(state.currentSplit as any);
-        const nextSplit = currentIdx !== -1 ? splits[(currentIdx + 1) % splits.length] : 'Push';
-
         setState(prev => ({
             ...prev,
             history: newHistory,
-            completedToday: true,
-            currentSplit: nextSplit
+            completedToday: true
+            // Don't rotate split yet! Wait for next day.
         }));
     };
 
