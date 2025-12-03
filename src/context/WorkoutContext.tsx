@@ -5,6 +5,7 @@ import { loadFromStorage, saveToStorage } from '../utils/storage';
 
 interface WorkoutHistory {
     date: string;
+    split: string;
     exercises: Exercise[];
 }
 
@@ -289,7 +290,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             mappedItems.add(item.replace(/\s+/g, '')); // Add "kettlebells" from "kettle bells"
 
             // Synonyms & Inferences
-            if (item.includes('dumb') || item.includes('weight')) {
+            if (item.includes('dumb')) {
                 mappedItems.add('dumbbell');
                 mappedItems.add('dumbbells');
             }
@@ -471,7 +472,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const completeWorkout = () => {
         const today = new Date().toISOString();
-        const newHistory = [...state.history, { date: today, exercises: state.dailyWorkout }];
+        const newHistory = [...state.history, {
+            date: today,
+            split: state.currentSplit,
+            exercises: state.dailyWorkout
+        }];
 
         // Rotate Split
         const splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
