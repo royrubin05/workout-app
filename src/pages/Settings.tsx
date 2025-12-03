@@ -24,7 +24,7 @@ export const Settings: React.FC = () => {
     const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
     const [previewCount, setPreviewCount] = useState(0);
 
-    const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+    const [viewingHistoryItem, setViewingHistoryItem] = useState<typeof history[0] | null>(null);
 
     // Calculate preview count
     useEffect(() => {
@@ -148,11 +148,15 @@ export const Settings: React.FC = () => {
                         No workouts completed yet.
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                         {history.slice().reverse().map((entry, i) => (
-                            <div key={i} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/30">
+                            <div
+                                key={i}
+                                onClick={() => setViewingHistoryItem(entry)}
+                                className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/30 cursor-pointer hover:bg-slate-800 transition-colors group"
+                            >
                                 <div className="flex items-center justify-between mb-2">
-                                    <div className="font-bold text-white text-lg">{entry.split || 'Workout'}</div>
+                                    <div className="font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{entry.split || 'Workout'}</div>
                                     <div className="text-xs text-slate-400">
                                         {new Date(entry.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                                     </div>
@@ -167,7 +171,7 @@ export const Settings: React.FC = () => {
                                         </span>
                                     ))}
                                     {entry.exercises.length > 3 && (
-                                        <span className="text-[10px] px-2 py-1 bg-slate-700 rounded-full text-slate-300">
+                                        <span className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full">
                                             +{entry.exercises.length - 3} more
                                         </span>
                                     )}
@@ -236,6 +240,42 @@ export const Settings: React.FC = () => {
                                     </div>
                                 ))
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* History Details Modal */}
+            {viewingHistoryItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+                        <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50 rounded-t-2xl">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">{viewingHistoryItem.split || 'Workout'}</h3>
+                                <div className="text-xs text-slate-400">
+                                    {new Date(viewingHistoryItem.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                                </div>
+                            </div>
+                            <button onClick={() => setViewingHistoryItem(null)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {viewingHistoryItem.exercises.map((ex, i) => (
+                                <div key={i} className="flex items-center gap-4 bg-slate-800/30 p-3 rounded-xl border border-slate-700/30">
+                                    <div className="w-10 h-10 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-sm overflow-hidden border border-slate-700">
+                                        {ex.gifUrl ? (
+                                            <img src={ex.gifUrl} alt={ex.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <span>{i + 1}</span>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <div className="font-medium text-white">{ex.name}</div>
+                                        <div className="text-xs text-slate-400">{ex.muscleGroup}</div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
