@@ -1,4 +1,3 @@
-```
 import React, { useState, useEffect } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
 import { Save, Dumbbell, MinusCircle, X } from 'lucide-react';
@@ -60,13 +59,13 @@ export const Settings: React.FC = () => {
 
                 {/* Connection Status */}
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                    <div className={`w - 2 h - 2 rounded - full ${ connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500' } `} />
+                    <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
                     <div className="text-xs text-slate-400 font-medium">
                         {connectionStatus === 'connected' ? (
-                            <span>Synced {lastSyncTime && `• ${ lastSyncTime } `}</span>
+                            <span>Synced {lastSyncTime && `• ${lastSyncTime}`}</span>
                         ) : (
                             <span title={connectionError || 'Unknown Error'}>
-                                Offline {connectionError && `(${ connectionError })`}
+                                Offline {connectionError && `(${connectionError})`}
                             </span>
                         )}
                     </div>
@@ -115,13 +114,9 @@ export const Settings: React.FC = () => {
                     </div>
                     <button
                         onClick={toggleBodyweight}
-                        className={`w - 12 h - 6 rounded - full transition - colors relative ${
-    includeBodyweight ? 'bg-blue-500' : 'bg-slate-700'
-} `}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${includeBodyweight ? 'bg-blue-500' : 'bg-slate-700'}`}
                     >
-                        <div className={`absolute top - 1 w - 4 h - 4 rounded - full bg - white transition - transform ${
-    includeBodyweight ? 'left-7' : 'left-1'
-} `} />
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${includeBodyweight ? 'left-7' : 'left-1'}`} />
                     </button>
                 </div>
 
