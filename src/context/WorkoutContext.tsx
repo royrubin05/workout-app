@@ -32,6 +32,7 @@ interface WorkoutContextType extends WorkoutState {
     excludeExercise: (exerciseName: string) => void;
     restoreExercise: (exerciseName: string) => void;
     toggleBodyweight: () => void;
+    cycleSplit: () => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -527,6 +528,21 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         generateWorkout();
     };
 
+    const cycleSplit = () => {
+        const splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
+        const currentIdx = splits.indexOf(state.currentSplit as any);
+        const nextSplit = currentIdx !== -1 ? splits[(currentIdx + 1) % splits.length] : 'Push';
+
+        setState(prev => ({
+            ...prev,
+            currentSplit: nextSplit
+        }));
+
+        // Generate immediately for the new split
+        // We pass nextSplit because state update is async
+        generateWorkout(nextSplit);
+    };
+
     const getAllExercises = () => {
         return [...EXERCISES, ...apiExercises];
     };
@@ -599,7 +615,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             getAvailableExercises,
             excludeExercise,
             restoreExercise,
-            toggleBodyweight
+            toggleBodyweight,
+            cycleSplit
         }}>
             {!isLoaded ? (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
