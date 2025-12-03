@@ -32,7 +32,7 @@ interface WorkoutContextType extends WorkoutState {
     excludeExercise: (exerciseName: string) => void;
     restoreExercise: (exerciseName: string) => void;
     toggleBodyweight: () => void;
-    cycleSplit: () => void;
+    replaceExercise: (exerciseName: string) => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -528,19 +528,39 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         generateWorkout();
     };
 
-    const cycleSplit = () => {
-        const splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
-        const currentIdx = splits.indexOf(state.currentSplit as any);
-        const nextSplit = currentIdx !== -1 ? splits[(currentIdx + 1) % splits.length] : 'Push';
+    const replaceExercise = (exerciseName: string) => {
+        setState(prev => {
+            const currentWorkout = [...prev.dailyWorkout];
+            const index = currentWorkout.findIndex(ex => ex.name === exerciseName);
 
-        setState(prev => ({
-            ...prev,
-            currentSplit: nextSplit
-        }));
+            if (index === -1) return prev;
 
-        // Generate immediately for the new split
-        // We pass nextSplit because state update is async
-        generateWorkout(nextSplit);
+            const oldExercise = currentWorkout[index];
+
+            // Find a replacement
+            // Use the same category logic as generateWorkout
+            const category = prev.currentSplit === 'Push' ? 'Push' :
+                prev.currentSplit === 'Pull' ? 'Pull' :
+                    prev.currentSplit === 'Legs' ? 'Legs' : 'Full Body';
+
+            const candidates = getAvailableExercises(prev.equipment, category).filter(ex =>
+                ex.name !== oldExercise.name && // Not the same exercise
+                ex.muscleGroup === oldExercise.muscleGroup && // Same muscle group
+                !prev.excludedExercises.includes(ex.name) && // Not excluded
+                !currentWorkout.some(w => w.name === ex.name) // Not already in workout
+            );
+
+            if (candidates.length > 0) {
+                const replacement = candidates[Math.floor(Math.random() * candidates.length)];
+                currentWorkout[index] = replacement;
+                return {
+                    ...prev,
+                    dailyWorkout: currentWorkout
+                };
+            }
+
+            return prev; // No replacement found
+        });
     };
 
     const getAllExercises = () => {
@@ -616,7 +636,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             excludeExercise,
             restoreExercise,
             toggleBodyweight,
-            cycleSplit
+            replaceExercise
         }}>
             {!isLoaded ? (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">

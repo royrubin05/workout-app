@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
 export const Home: React.FC = () => {
-    const { dailyWorkout, refreshWorkout, currentSplit, excludeExercise, completeWorkout, completedToday, cycleSplit } = useWorkout();
+    const { dailyWorkout, refreshWorkout, currentSplit, excludeExercise, completeWorkout, completedToday, replaceExercise } = useWorkout();
     const [showSuccessToast, setShowSuccessToast] = React.useState(false);
 
     const handleComplete = () => {
@@ -38,28 +38,25 @@ export const Home: React.FC = () => {
 
             <div className="flex justify-between items-end mb-6">
                 <div>
-                    <div className="flex items-center gap-3 mb-1">
-                        <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider">
-                            Today's Focus: <span className="text-white font-bold">{currentSplit}</span>
-                        </h2>
-                        <button
-                            onClick={cycleSplit}
-                            className="text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full text-slate-400 hover:text-white transition-colors"
-                        >
-                            Switch
-                        </button>
-                    </div>
+                    <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
+                        Today's Focus: <span className="text-white font-bold">{currentSplit}</span>
+                        <span className="text-slate-400 text-xs ml-2 normal-case tracking-normal">
+                            {currentSplit === 'Push' && '(Chest, Shoulders, Triceps)'}
+                            {currentSplit === 'Pull' && '(Back, Biceps, Rear Delts)'}
+                            {currentSplit === 'Legs' && '(Quads, Hamstrings, Calves)'}
+                            {currentSplit === 'Full Body' && '(Total Body)'}
+                        </span>
+                    </h2>
                     <h3 className="text-2xl font-bold text-white">
                         {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </h3>
                 </div>
                 <button
                     onClick={refreshWorkout}
-                    className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 hover:bg-slate-800 text-blue-400 hover:text-blue-300 rounded-lg border border-slate-700/50 transition-all text-sm font-medium"
+                    className="p-2 text-slate-500 hover:text-white transition-colors"
                     title="Regenerate Workout"
                 >
-                    <RefreshCw size={16} />
-                    Regenerate
+                    <RefreshCw size={20} />
                 </button>
             </div>
 
@@ -94,13 +91,22 @@ export const Home: React.FC = () => {
                                 </div>
                             </div>
 
-                            <button
-                                onClick={() => excludeExercise(exercise.name)}
-                                className="p-2 text-slate-500 hover:text-red-400 transition-colors"
-                                title="Exclude Exercise"
-                            >
-                                <MinusCircle size={24} />
-                            </button>
+                            <div className="flex flex-col gap-1">
+                                <button
+                                    onClick={() => replaceExercise(exercise.name)}
+                                    className="p-2 text-slate-500 hover:text-blue-400 transition-colors"
+                                    title="Swap Exercise"
+                                >
+                                    <RefreshCw size={20} />
+                                </button>
+                                <button
+                                    onClick={() => excludeExercise(exercise.name)}
+                                    className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                                    title="Exclude Exercise"
+                                >
+                                    <MinusCircle size={20} />
+                                </button>
+                            </div>
                         </motion.div>
                     ))}
                 </AnimatePresence>
