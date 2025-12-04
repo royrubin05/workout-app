@@ -18,7 +18,6 @@ interface WorkoutState {
     connectionStatus: 'connected' | 'disconnected' | 'checking';
     connectionError: string | null;
     lastSyncTime: string | null;
-    lastSyncTime: string | null;
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -28,7 +27,6 @@ interface WorkoutContextType extends WorkoutState {
     allExercises: Exercise[];
     getAvailableExercises: (eq: string, category?: string) => Exercise[];
     excludeExercise: (exerciseName: string) => void;
-    restoreExercise: (exerciseName: string) => void;
     restoreExercise: (exerciseName: string) => void;
     replaceExercise: (exerciseName: string) => void;
 }
@@ -48,7 +46,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         excludedExercises: [],
         connectionStatus: 'checking',
         connectionError: null,
-        lastSyncTime: null,
         lastSyncTime: null
     });
 
@@ -229,7 +226,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 setState(prev => {
                     const newEquipment = settingsData?.equipment || prev.equipment;
                     const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
-                    const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
 
                     // Restore full state
                     const newSplit = settingsData?.current_split || prev.currentSplit;
@@ -250,7 +246,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     return {
                         ...prev,
                         equipment: newEquipment,
-                        excludedExercises: newExcluded,
                         excludedExercises: newExcluded,
                         currentSplit: newSplit,
                         dailyWorkout: newDailyWorkout,
@@ -289,7 +284,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 .upsert({
                     id: user.id,
                     equipment: state.equipment,
-                    excluded_exercises: state.excludedExercises,
                     excluded_exercises: state.excludedExercises,
                     current_split: state.currentSplit,
                     daily_workout: state.dailyWorkout,
@@ -700,7 +694,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             allExercises: getAllExercises(),
             getAvailableExercises,
             excludeExercise,
-            restoreExercise,
             restoreExercise,
             replaceExercise
         }}>

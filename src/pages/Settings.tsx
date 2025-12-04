@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Save, Dumbbell, MinusCircle, X } from 'lucide-react';
+import { Save, MinusCircle, X } from 'lucide-react';
 
 export const Settings: React.FC = () => {
     const {
@@ -12,7 +12,6 @@ export const Settings: React.FC = () => {
         restoreExercise,
         connectionStatus,
         connectionError,
-        lastSyncTime,
         lastSyncTime,
         history
     } = useWorkout();
