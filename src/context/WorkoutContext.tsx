@@ -1,5 +1,6 @@
 import type { Exercise } from '../data/exercises';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface WorkoutHistory {
     date: string;
@@ -51,6 +52,43 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const [isLoaded, setIsLoaded] = useState(false);
     const [allExercises, setAllExercises] = useState<Exercise[]>([]);
+    const [loadingProgress, setLoadingProgress] = useState(0);
+    const [loadingText, setLoadingText] = useState('Warming up...');
+
+    // Loading Animation Effect
+    useEffect(() => {
+        if (isLoaded) {
+            setLoadingProgress(100);
+            return;
+        }
+
+        const texts = [
+            'Warming up...',
+            'Loading weights...',
+            'Chalking up...',
+            'Spotting you...',
+            'Stretching...',
+            'Hydrating...'
+        ];
+
+        let textIndex = 0;
+        const textInterval = setInterval(() => {
+            textIndex = (textIndex + 1) % texts.length;
+            setLoadingText(texts[textIndex]);
+        }, 800);
+
+        const progressInterval = setInterval(() => {
+            setLoadingProgress(prev => {
+                if (prev >= 90) return prev; // Hold at 90% until loaded
+                return prev + Math.random() * 10;
+            });
+        }, 200);
+
+        return () => {
+            clearInterval(textInterval);
+            clearInterval(progressInterval);
+        };
+    }, [isLoaded]);
 
     // Initialize
     useEffect(() => {
@@ -697,16 +735,58 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             restoreExercise,
             replaceExercise
         }}>
-            {!isLoaded ? (
-                <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-                    <div className="text-center">
-                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                        <p className="text-slate-400">Loading exercises...</p>
-                    </div>
-                </div>
-            ) : (
-                children
-            )}
+            <AnimatePresence mode="wait">
+                {!isLoaded ? (
+                    <motion.div
+                        key="loading"
+                        initial={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 text-white"
+                    >
+                        <div className="w-64 space-y-6 text-center">
+                            {/* Logo or Icon */}
+                            <motion.div
+                                animate={{
+                                    scale: [1, 1.1, 1],
+                                    rotate: [0, 5, -5, 0]
+                                }}
+                                transition={{
+                                    duration: 2,
+                                    repeat: Infinity,
+                                    ease: "easeInOut"
+                                }}
+                                className="text-4xl mb-4"
+                            >
+                                💪
+                            </motion.div>
+
+                            {/* Progress Bar */}
+                            <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                                <motion.div
+                                    className="h-full bg-blue-500"
+                                    initial={{ width: "0%" }}
+                                    animate={{ width: `${loadingProgress}%` }}
+                                    transition={{ type: "spring", stiffness: 50 }}
+                                />
+                            </div>
+
+                            {/* Text */}
+                            <motion.p
+                                key={loadingText}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="text-slate-400 font-medium h-6"
+                            >
+                                {loadingText}
+                            </motion.p>
+                        </div>
+                    </motion.div>
+                ) : (
+                    children
+                )}
+            </AnimatePresence>
         </WorkoutContext.Provider>
     );
 };
