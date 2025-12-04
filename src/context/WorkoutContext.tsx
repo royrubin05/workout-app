@@ -18,7 +18,7 @@ interface WorkoutState {
     connectionStatus: 'connected' | 'disconnected' | 'checking';
     connectionError: string | null;
     lastSyncTime: string | null;
-    includeBodyweight: boolean;
+    lastSyncTime: string | null;
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -29,7 +29,7 @@ interface WorkoutContextType extends WorkoutState {
     getAvailableExercises: (eq: string, category?: string) => Exercise[];
     excludeExercise: (exerciseName: string) => void;
     restoreExercise: (exerciseName: string) => void;
-    toggleBodyweight: () => void;
+    restoreExercise: (exerciseName: string) => void;
     replaceExercise: (exerciseName: string) => void;
 }
 
@@ -49,7 +49,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         connectionStatus: 'checking',
         connectionError: null,
         lastSyncTime: null,
-        includeBodyweight: true
+        lastSyncTime: null
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
@@ -215,7 +215,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // 2. Load Cloud Data (Settings & State)
                 const { data: settingsData } = await supabase
                     .from('user_settings')
-                    .select('equipment, excluded_exercises, include_bodyweight, current_split, daily_workout, last_workout_date, completed_today')
+                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today')
                     .eq('id', userId)
                     .single();
 
@@ -229,7 +229,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 setState(prev => {
                     const newEquipment = settingsData?.equipment || prev.equipment;
                     const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
-                    const newIncludeBodyweight = settingsData?.include_bodyweight !== undefined ? settingsData.include_bodyweight : (prev.includeBodyweight ?? true);
+                    const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
 
                     // Restore full state
                     const newSplit = settingsData?.current_split || prev.currentSplit;
@@ -251,7 +251,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...prev,
                         equipment: newEquipment,
                         excludedExercises: newExcluded,
-                        includeBodyweight: newIncludeBodyweight,
+                        excludedExercises: newExcluded,
                         currentSplit: newSplit,
                         dailyWorkout: newDailyWorkout,
                         lastWorkoutDate: newLastDate,
@@ -290,7 +290,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     id: user.id,
                     equipment: state.equipment,
                     excluded_exercises: state.excludedExercises,
-                    include_bodyweight: state.includeBodyweight,
+                    excluded_exercises: state.excludedExercises,
                     current_split: state.currentSplit,
                     daily_workout: state.dailyWorkout,
                     last_workout_date: state.lastWorkoutDate,
@@ -309,7 +309,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Debounce or just run?
         const timeout = setTimeout(syncToCloud, 2000);
         return () => clearTimeout(timeout);
-    }, [state.equipment, state.excludedExercises, state.includeBodyweight, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday]); // Sync on ANY state change
+    }, [state.equipment, state.excludedExercises, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday]); // Sync on ANY state change
 
     // Generate workout if needed
     useEffect(() => {
@@ -353,11 +353,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const mappedItems = new Set<string>();
 
         // Always include bodyweight IF enabled
-        if (state.includeBodyweight) {
-            mappedItems.add('body weight');
-            mappedItems.add('body only');
-            mappedItems.add('bodyweight');
-        }
+        // Always include bodyweight
+        mappedItems.add('body weight');
+        mappedItems.add('body only');
+        mappedItems.add('bodyweight');
 
         rawItems.forEach(item => {
             // Direct match (cleaned)
@@ -690,9 +689,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
     };
 
-    const toggleBodyweight = () => {
-        setState(prev => ({ ...prev, includeBodyweight: !prev.includeBodyweight }));
-    };
+
 
     return (
         <WorkoutContext.Provider value={{
@@ -704,7 +701,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             getAvailableExercises,
             excludeExercise,
             restoreExercise,
-            toggleBodyweight,
+            restoreExercise,
             replaceExercise
         }}>
             {!isLoaded ? (
