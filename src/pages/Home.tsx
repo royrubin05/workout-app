@@ -1,12 +1,13 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { RefreshCw, MinusCircle, CheckCircle, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, MinusCircle, CheckCircle, CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
 export const Home: React.FC = () => {
     const { dailyWorkout, refreshWorkout, currentSplit, excludeExercise, completeWorkout, completedToday, replaceExercise } = useWorkout();
     const [showSuccessToast, setShowSuccessToast] = React.useState(false);
+    const [previewImage, setPreviewImage] = React.useState<{ url: string, name: string } | null>(null);
 
     const handleComplete = () => {
         completeWorkout();
@@ -32,6 +33,44 @@ export const Home: React.FC = () => {
                     >
                         <CheckCircle2 size={20} />
                         Workout Logged Successfully!
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Image Preview Modal */}
+            <AnimatePresence>
+                {previewImage && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setPreviewImage(null)}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50">
+                                <h3 className="text-xl font-bold text-white">{previewImage.name}</h3>
+                                <button
+                                    onClick={() => setPreviewImage(null)}
+                                    className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            <div className="p-2 bg-black flex items-center justify-center min-h-[300px]">
+                                <img
+                                    src={previewImage.url}
+                                    alt={previewImage.name}
+                                    className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                                />
+                            </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -71,7 +110,10 @@ export const Home: React.FC = () => {
                             transition={{ delay: index * 0.05 }}
                             className="glass-card p-4 flex items-center gap-4 group"
                         >
-                            <div className="w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700">
+                            <div
+                                className="w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700 cursor-pointer hover:border-blue-500 transition-colors"
+                                onClick={() => exercise.gifUrl && setPreviewImage({ url: exercise.gifUrl, name: exercise.name })}
+                            >
                                 {exercise.gifUrl ? (
                                     <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
                                 ) : (
