@@ -61,7 +61,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // 1. Fetch Exercises from DB
             let dbExercises: Exercise[] = [];
             if (supabase) {
-                const { data, error } = await supabase.from('exercises').select('*');
+                const { data } = await supabase.from('exercises').select('*');
 
                 if (data && data.length > 0) {
                     console.log(`📦 Loaded ${data.length} exercises from Supabase.`);
@@ -414,18 +414,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const getAvailableExercises = (eqString: string, category?: string) => {
         const userEq = normalizeUserEquipment(eqString);
 
-        // Filter by category first
         // Use allExercises from state which is populated from DB
         let uniqueExercises = allExercises;
-
-        // Filter by category first
-        if (category && category !== 'Full Body') { // 'Full Body' category means no specific category filter
-            uniqueExercises = uniqueExercises.filter(ex => ex.category === category);
-        }
-        const allExercises = [...EXERCISES, ...apiExercises];
-
-        // Deduplicate by name (prefer API version for GIF)
-        let uniqueExercises = Array.from(new Map(allExercises.map(item => [item.name, item])).values());
 
         // Filter by category first
         if (category && category !== 'Full Body') { // 'Full Body' category means no specific category filter
