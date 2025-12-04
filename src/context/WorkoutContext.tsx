@@ -1,7 +1,5 @@
 import type { Exercise } from '../data/exercises';
-import { EXERCISES } from '../data/exercises';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { loadFromStorage, saveToStorage } from '../utils/storage';
 
 interface WorkoutHistory {
     date: string;
@@ -55,57 +53,79 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
-    const [apiExercises, setApiExercises] = useState<Exercise[]>([]);
+    const [allExercises, setAllExercises] = useState<Exercise[]>([]);
 
     // Initialize
     useEffect(() => {
         const init = async () => {
-            // 1. Load Local Storage (Primary Source)
-            const localData = loadFromStorage();
-            if (localData) {
-                const today = new Date().toDateString();
-                const isCompleted = localData.history?.some((h: WorkoutHistory) => new Date(h.date).toDateString() === today);
+            // 1. Fetch Exercises from DB
+            let dbExercises: Exercise[] = [];
+            if (supabase) {
+                const { data, error } = await supabase.from('exercises').select('*');
 
-                setState(prev => ({
-                    ...prev,
-                    ...localData,
-                    completedToday: isCompleted || false,
-                    currentSplit: localData.currentSplit || 'Push',
-                    excludedExercises: localData.excludedExercises || [],
-                    includeBodyweight: localData.includeBodyweight !== undefined ? localData.includeBodyweight : true
-                }));
-            }
+                if (data && data.length > 0) {
+                    console.log(`📦 Loaded ${data.length} exercises from Supabase.`);
+                    dbExercises = data.map((d: any) => ({
+                        id: d.id,
+                        name: d.name,
+                        equipment: d.equipment,
+                        category: d.category,
+                        muscleGroup: d.muscle_group,
+                        gifUrl: d.gif_url
+                    }));
+                    setAllExercises(dbExercises);
+                } else {
+                    console.log('📭 Database empty. Fetching from External API...');
+                    // DB is empty, fetch from API and populate
+                    try {
+                        const { fetchExercisesFromAPI, mapApiToInternal } = await import('../services/exerciseDB');
+                        const apiData = await fetchExercisesFromAPI();
 
-            // 2. Load API Data
-            try {
-                const { fetchExercisesFromAPI, mapApiToInternal } = await import('../services/exerciseDB');
-                const apiData = await fetchExercisesFromAPI();
-                if (apiData.length > 0) {
-                    setApiExercises(mapApiToInternal(apiData));
+                        if (apiData.length > 0) {
+                            const mappedExercises = mapApiToInternal(apiData);
+                            console.log(`🚀 Fetched ${mappedExercises.length} exercises from API. Syncing to DB...`);
+
+                            // Prepare for DB insert (map to snake_case columns)
+                            const dbInserts = mappedExercises.map(ex => ({
+                                id: ex.id,
+                                name: ex.name,
+                                equipment: ex.equipment,
+                                category: ex.category,
+                                muscle_group: ex.muscleGroup,
+                                gif_url: ex.gifUrl
+                            }));
+
+                            // Insert in chunks to avoid payload limits
+                            const chunkSize = 100;
+                            for (let i = 0; i < dbInserts.length; i += chunkSize) {
+                                const chunk = dbInserts.slice(i, i + chunkSize);
+                                const { error: insertError } = await supabase.from('exercises').upsert(chunk);
+                                if (insertError) console.error('Error syncing chunk:', insertError);
+                            }
+
+                            console.log('✅ Sync complete!');
+                            setAllExercises(mappedExercises);
+                        }
+                    } catch (e) {
+                        console.error("Failed to auto-populate exercises:", e);
+                    }
                 }
-            } catch (e) {
-                console.error("Failed to load API exercises", e);
             }
-
-            setIsLoaded(true);
         };
 
         init();
+        setIsLoaded(true);
     }, []);
 
     // Save to storage on change
+    // REMOVED: User requested NO local storage. Everything is in DB.
+    /*
     useEffect(() => {
         if (isLoaded) {
             saveToStorage(state);
-
-            // Cloud Sync
-            if (supabase) {
-                // const user = (supabase.auth as any).getUser(); // Check current user
-                // We'll use a separate effect for auth, but here we just fire and forget
-                // Actually, we need the user ID. Let's rely on the auth effect below.
-            }
         }
     }, [state, isLoaded]);
+    */
 
     // --- SUPABASE AUTH & SYNC ---
     useEffect(() => {
@@ -192,23 +212,51 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 const userId = authData.user.id;
                 console.log('☁️ Connected to Cloud as:', authData.user.email);
 
-                // 2. Load Cloud Data
+                // 2. Load Cloud Data (Settings & State)
                 const { data: settingsData } = await supabase
                     .from('user_settings')
-                    .select('equipment, excluded_exercises, include_bodyweight')
+                    .select('equipment, excluded_exercises, include_bodyweight, current_split, daily_workout, last_workout_date, completed_today')
                     .eq('id', userId)
                     .single();
 
-                // 3. Merge/Update State
+                // 3. Load Cloud Data (History)
+                const { data: historyData } = await supabase
+                    .from('workout_history')
+                    .select('*')
+                    .eq('user_id', userId);
+
+                // 4. Merge/Update State
                 setState(prev => {
                     const newEquipment = settingsData?.equipment || prev.equipment;
                     const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
                     const newIncludeBodyweight = settingsData?.include_bodyweight !== undefined ? settingsData.include_bodyweight : (prev.includeBodyweight ?? true);
+
+                    // Restore full state
+                    const newSplit = settingsData?.current_split || prev.currentSplit;
+                    const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
+                    const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
+                    const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
+
+                    // Merge history (avoid duplicates if any)
+                    // Actually, cloud history should be the source of truth if we are syncing.
+                    // But we might have local offline history.
+                    // For now, let's just use cloud history if available, or merge.
+                    const cloudHistory = historyData?.map((h: any) => ({
+                        date: h.date,
+                        split: h.split,
+                        exercises: typeof h.exercises === 'string' ? JSON.parse(h.exercises) : h.exercises
+                    })) || [];
+
                     return {
                         ...prev,
                         equipment: newEquipment,
                         excludedExercises: newExcluded,
                         includeBodyweight: newIncludeBodyweight,
+                        currentSplit: newSplit,
+                        dailyWorkout: newDailyWorkout,
+                        lastWorkoutDate: newLastDate,
+                        completedToday: newCompletedToday,
+                        history: cloudHistory.length > 0 ? cloudHistory : prev.history,
                         connectionStatus: 'connected',
                         lastSyncTime: new Date().toLocaleTimeString()
                     };
@@ -243,6 +291,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     equipment: state.equipment,
                     excluded_exercises: state.excludedExercises,
                     include_bodyweight: state.includeBodyweight,
+                    current_split: state.currentSplit,
+                    daily_workout: state.dailyWorkout,
+                    last_workout_date: state.lastWorkoutDate,
+                    completed_today: state.completedToday,
                     updated_at: new Date().toISOString()
                 });
 
@@ -257,7 +309,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Debounce or just run?
         const timeout = setTimeout(syncToCloud, 2000);
         return () => clearTimeout(timeout);
-    }, [state.equipment, state.excludedExercises, state.includeBodyweight]); // Sync on equipment or exclusion change
+    }, [state.equipment, state.excludedExercises, state.includeBodyweight, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday]); // Sync on ANY state change
 
     // Generate workout if needed
     useEffect(() => {
@@ -362,11 +414,23 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const getAvailableExercises = (eqString: string, category?: string) => {
         const userEq = normalizeUserEquipment(eqString);
 
-        // Merge Local + API
+        // Filter by category first
+        // Use allExercises from state which is populated from DB
+        let uniqueExercises = allExercises;
+
+        // Filter by category first
+        if (category && category !== 'Full Body') { // 'Full Body' category means no specific category filter
+            uniqueExercises = uniqueExercises.filter(ex => ex.category === category);
+        }
         const allExercises = [...EXERCISES, ...apiExercises];
 
         // Deduplicate by name (prefer API version for GIF)
-        const uniqueExercises = Array.from(new Map(allExercises.map(item => [item.name, item])).values());
+        let uniqueExercises = Array.from(new Map(allExercises.map(item => [item.name, item])).values());
+
+        // Filter by category first
+        if (category && category !== 'Full Body') { // 'Full Body' category means no specific category filter
+            uniqueExercises = uniqueExercises.filter(ex => ex.category === category);
+        }
 
         const filtered = uniqueExercises.filter(ex => {
             // Filter by Category (Split)
@@ -508,13 +572,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // generateWorkout(); 
     };
 
-    const completeWorkout = () => {
+    const completeWorkout = async () => {
         const today = new Date().toISOString();
-        const newHistory = [...state.history, {
+        const newHistoryItem = {
             date: today,
             split: state.currentSplit,
             exercises: state.dailyWorkout
-        }];
+        };
+
+        const newHistory = [...state.history, newHistoryItem];
 
         setState(prev => ({
             ...prev,
@@ -522,6 +588,19 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             completedToday: true
             // Don't rotate split yet! Wait for next day.
         }));
+
+        // Sync to Cloud immediately
+        if (state.connectionStatus === 'connected') {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                await supabase.from('workout_history').insert({
+                    user_id: user.id,
+                    date: today,
+                    split: state.currentSplit,
+                    exercises: state.dailyWorkout
+                });
+            }
+        }
     };
 
     const refreshWorkout = () => {
@@ -564,7 +643,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     const getAllExercises = () => {
-        return [...EXERCISES, ...apiExercises];
+        return allExercises;
     };
 
     const excludeExercise = (exerciseName: string) => {
