@@ -16,9 +16,53 @@ export const Home: React.FC = () => {
         focusArea,
         setFocusArea
     } = useWorkout();
-    const [previewImage, setPreviewImage] = React.useState<{ url: string, name: string } | null>(null);
+    const [previewImage, setPreviewImage] = React.useState<any | null>(null);
 
     // Removed handleComplete as we now auto-log via state
+
+    // Smart Instruction Generator (simulating AI)
+    const getSmartInstructions = (exercise: any) => {
+        const { name, muscleGroup, equipment } = exercise;
+        const nameLower = name.toLowerCase();
+
+        let action = "Perform the movement with control.";
+        let cue = "Keep your core engaged.";
+        let breathing = "Exhale on exertion.";
+
+        // 1. Analyze Movement Pattern
+        if (nameLower.includes('press') || nameLower.includes('push')) {
+            action = "Drive the weight away from you with explosive power, then control the return.";
+            cue = "Keep your elbows tucked slightly to protect your shoulders.";
+        } else if (nameLower.includes('row') || nameLower.includes('pull') || nameLower.includes('chin')) {
+            action = "Pull through your elbows, visualizing them driving back behind you.";
+            cue = "Squeeze your shoulder blades together at the peak of the movement.";
+        } else if (nameLower.includes('squat') || nameLower.includes('lung')) {
+            action = "Descend by breaking at the hips and knees simultaneously.";
+            cue = "Keep your chest up and drive through your heels.";
+        } else if (nameLower.includes('curl')) {
+            action = "Curl the weight up while keeping your elbows pinned to your sides.";
+            cue = "Squeeze the biceps hard at the top and lower slowly.";
+        } else if (nameLower.includes('exten') || nameLower.includes('pushdown') || nameLower.includes('skull')) {
+            action = "Extend your arm fully, targeting the triceps.";
+            cue = "Keep your upper arm stationary only moving the forearm.";
+        } else if (nameLower.includes('fly') || nameLower.includes('raise')) {
+            action = "Move in a wide arc, maintaining a slight bend in your elbows.";
+            cue = "Focus on the stretch at the bottom and the contraction at the top.";
+        }
+
+        // 2. Analyze Equipment
+        if (equipment === 'Barbell') {
+            breathing = "Take a deep breath and brace before you start.";
+        } else if (equipment === 'Dumbbell') {
+            breathing = "Mainain stability and don't let the weights drift.";
+        } else if (equipment === 'Cable') {
+            action += " Maintain constant tension throughout the rep.";
+        } else if (equipment === 'Bodyweight') {
+            cue += " Focus on perfect form and time under tension.";
+        }
+
+        return { action, cue, breathing };
+    };
 
 
     // AI Summary Generator (Strategy & Tactics)
@@ -99,11 +143,25 @@ export const Home: React.FC = () => {
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl"
+                            className="relative max-w-xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl flex flex-col max-h-[90vh]"
                             onClick={e => e.stopPropagation()}
                         >
-                            <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50">
-                                <h3 className="text-xl font-bold text-white">{previewImage.name}</h3>
+                            <div className="p-4 border-b border-slate-700 flex items-start justify-between bg-slate-800/50">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white mb-1">{previewImage.name}</h3>
+
+                                    {/* AI Instructions Block */}
+                                    <div className="text-sm text-slate-300 space-y-1 mt-2 bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
+                                        <div className="flex gap-2">
+                                            <span className="text-blue-400 font-bold shrink-0">ACTION:</span>
+                                            <span>{getSmartInstructions(previewImage).action}</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <span className="text-emerald-400 font-bold shrink-0">CUE:</span>
+                                            <span>{getSmartInstructions(previewImage).cue}</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <button
                                     onClick={() => setPreviewImage(null)}
                                     className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
@@ -111,11 +169,11 @@ export const Home: React.FC = () => {
                                     <X size={24} />
                                 </button>
                             </div>
-                            <div className="p-2 bg-black flex items-center justify-center min-h-[300px]">
+                            <div className="p-4 bg-black flex items-center justify-center grow overflow-hidden">
                                 <img
-                                    src={previewImage.url}
+                                    src={previewImage.gifUrl}
                                     alt={previewImage.name}
-                                    className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                                    className="max-w-full max-h-[50vh] object-contain rounded-lg"
                                 />
                             </div>
                         </motion.div>
@@ -224,7 +282,7 @@ const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, rep
                 {/* Image */}
                 <div
                     className={`w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700 cursor-pointer hover:border-blue-500 transition-colors ${exercise.completed ? 'grayscale' : ''}`}
-                    onClick={() => exercise.gifUrl && setPreviewImage({ url: exercise.gifUrl, name: exercise.name })}
+                    onClick={() => exercise.gifUrl && setPreviewImage(exercise)}
                 >
                     {exercise.gifUrl ? (
                         <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
