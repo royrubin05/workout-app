@@ -636,12 +636,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const completedExercises = state.dailyWorkout.filter(ex => ex.completed);
         if (completedExercises.length === 0) return;
 
-        const newHistoryItem = {
-            date: today,
-            split: state.currentSplit,
-            focusArea: state.focusArea,
-            exercises: completedExercises // Log only what was done? Or all with status? Let's log all with status.
-        };
+
         // Actually, let's log the whole workout state so we know what was skipped.
         const historyEntry = {
             date: today,

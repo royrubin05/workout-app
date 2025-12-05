@@ -1,6 +1,6 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { ArrowLeft, Calendar, Dumbbell, Target } from 'lucide-react';
+import { ArrowLeft, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const Reports: React.FC = () => {
