@@ -22,7 +22,7 @@ export const Home: React.FC = () => {
 
     // Smart Instruction Generator (simulating AI)
     const getSmartInstructions = (exercise: any) => {
-        const { name, muscleGroup, equipment } = exercise;
+        const { name, equipment } = exercise;
         const nameLower = name.toLowerCase();
 
         let action = "Perform the movement with control.";
