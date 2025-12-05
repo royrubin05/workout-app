@@ -614,7 +614,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 3. Fallback if slots didn't fill enough (e.g. limited equipment)
         if (selectedExercises.length < 8) {
-            const remaining = getAvailableExercises(state.equipment, splitToUse) // Use splitToUse as category for fallback
+            const remaining = getAvailableExercises(equipmentToUse, splitToUse) // FORCE use of equipmentToUse (Bodyweight if focused)
                 .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
                 .sort(() => 0.5 - Math.random())
                 .slice(0, 8 - selectedExercises.length);
@@ -647,7 +647,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             date: today,
             split: state.currentSplit,
             focusArea: state.focusArea,
-            exercises: state.dailyWorkout
+            exercises: completedExercises // Only save COMPLETED exercises
         };
 
         const newHistory = [...state.history, historyEntry];
@@ -690,8 +690,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Use the same category logic as generateWorkout
             // But if Focus Area is set, prioritize that!
             const focusToUse = prev.focusArea;
+            const equipmentToUse = focusToUse === 'Bodyweight' ? 'Bodyweight' : prev.equipment;
 
-            const candidates = getAvailableExercises(prev.equipment).filter(ex =>
+            const candidates = getAvailableExercises(equipmentToUse).filter(ex =>
                 ex.name !== oldExercise.name && // Not the same exercise
                 !prev.excludedExercises.includes(ex.name) && // Not excluded
                 !currentWorkout.some(w => w.name === ex.name) // Not already in workout

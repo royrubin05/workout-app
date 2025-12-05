@@ -21,63 +21,66 @@ export const Home: React.FC = () => {
     // Removed handleComplete as we now auto-log via state
 
 
-    // AI Summary Generator (Smart Heuristic)
+    // AI Summary Generator (Strategy & Tactics)
     const getAISummary = () => {
         if (dailyWorkout.length === 0) return "Add equipment to generate a workout plan.";
 
         const focus = focusArea === 'Default' ? currentSplit : focusArea;
-        const compoundCount = dailyWorkout.filter(e => e.type === 'Compound').length;
-        const isolationCount = dailyWorkout.filter(e => e.type === 'Isolation').length;
 
-        // Find "Hero Lift" (first compound movement matching focus or just first compound)
-        const heroLift = dailyWorkout.find(e => e.type === 'Compound' && (e.muscleGroup === focus || focus === 'Default')) || dailyWorkout[0];
-
-        // Dynamic Tips Database
-        const tips: Record<string, string[]> = {
+        // Dynamic Tips Database (High Level Principles)
+        const strategies: Record<string, string[]> = {
             'Chest': [
-                "Focus on the stretch at the bottom and a hard squeeze at the top.",
-                "Keep your shoulders retracted to isolate the pecs.",
-                "Control the eccentric (lowering) phase for maximum growth."
+                "Focus: Maximum Contraction. Squeeze the pecs hard at the top of every rep to recruit more fibers.",
+                "Technique: Keep your shoulders pinned back (retracted) to prevent the front delts from taking over.",
+                "Tempo: Control the negative (lowering) phase for 2-3 seconds to stimulate hypertrophy."
             ],
             'Back': [
-                "Drive with your elbows, not your hands.",
-                "Think about squeezing a pencil between your shoulder blades.",
-                "Keep your chest up to engage the lats fully."
+                "Focus: Mind-Muscle Connection. Visualize your hands as hooks and pull with your elbows.",
+                "Technique: Initiate every pull by depressing your scapula before bending your arms.",
+                "Tempo: Pause for a full second at the peak of the contraction to eliminate momentum."
             ],
             'Legs': [
-                "Drive through your heels.",
-                "Keep your core braced tight throughout the movement.",
-                "Don't lock out your knees at the top to keep tension on the quads."
+                "Focus: Intensity. Leg growth requires pushing near failure. Keep tension on the muscles, not the joints.",
+                "Technique: Drive through your heels on presses and squats to better engage the posterior chain.",
+                "Tempo: Don't lock out your knees at the top. Keep constant tension on the quads."
             ],
             'Shoulders': [
-                "Control the weight, don't use momentum.",
-                "Focus on the side delts for width.",
-                "Keep your traps relaxed."
+                "Focus: Time Under Tension. The delts respond well to constant tension and higher rep ranges.",
+                "Technique: Lead with your elbows on lateral movements to target the side delts effectively.",
+                "Tempo: Avoid using body English (swinging). Strict form builds bigger shoulders."
             ],
             'Arms': [
-                "Keep your elbows pinned to your sides.",
-                "Squeeze the triceps hard at full extension.",
-                "Focus on the peak contraction for biceps."
+                "Focus: Isolation. Lock your elbows in place. Any movement at the shoulder reduces arm activation.",
+                "Technique: Supinate (twist) your pinky toward the ceiling on bicep curls for a peak contraction.",
+                "Tempo: Squeeze the triceps hard at full extension. The lockout is where the growth happens."
             ],
             'Push': [
-                "Prioritize your heavy compound presses first.",
-                "Keep your elbows tucked at 45 degrees to protect your shoulders.",
+                "Strategy: Heavy & Volume. We're hitting the pressing muscles from multiple angles.",
+                "Tip: Manage fatigue. If your shoulders tire out before your chest/triceps, reduce the weight and focus on form.",
             ],
             'Pull': [
-                "Initiate the pull with your lats, not your biceps.",
-                "Use straps if your grip fails before your back does.",
+                "Strategy: Posterior Chain. This session targets width and thickness for a complete back.",
+                "Tip: Grip strength can be a limiting factor. Use straps if needed to fully tax the back muscles.",
             ],
             'Bodyweight': [
-                "Focus on time under tension since you don't have heavy weights.",
-                "Explode up on the concentric phase.",
-                "Shorten your rest periods to keep the intensity high."
+                "Strategy: High Frequency & Volume. Without heavy loads, we rely on more reps and less rest.",
+                "Tip: Focus on explosive concentrics (up) and slow, controlled eccentrics (down) to mimic heavy lifting.",
+                "Tip: Minimize rest times. Keep your heart rate up to induce metabolic stress."
             ]
         };
 
-        const specificTips = tips[focus] || tips['Push']; // Fallback
+        const specificTips = strategies[focus] || strategies['Push']; // Fallback
         const randomTip = specificTips[new Date().getDate() % specificTips.length];
 
-        return `Today's **${currentSplit}** session prioritizes your **${focus}**. You're starting strong with **${heroLift.name}**—${randomTip.toLowerCase()} This workout includes ${compoundCount} compound lifts for mass and ${isolationCount} isolation moves for detail.`;
+        // Generic Intro based on focus
+        let intro = `Today's **${currentSplit}** session`;
+        if (focusArea !== 'Default') {
+            intro += ` has a special focus on **${focusArea}**.`;
+        } else {
+            intro += ` targets the entire pushing chain.`;
+        }
+
+        return `${intro} ${randomTip}`;
     };
 
     return (

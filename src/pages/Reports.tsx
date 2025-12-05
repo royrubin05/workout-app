@@ -22,16 +22,15 @@ export const Reports: React.FC = () => {
 
     // Merge and sort
     const sortedHistory = React.useMemo(() => {
-        const combined = [...history];
+        let combined = [...history];
+
         if (activeWorkoutEntry) {
-            // Check if we already have an entry for today in history to avoid dupes
-            // (Though our logic prevents double logging, this is safe)
+            // ALWAYS prioritize the active/live workout for today over any stored history
             const todayStr = new Date().toDateString();
-            const hasToday = combined.some(h => new Date(h.date).toDateString() === todayStr);
-            if (!hasToday) {
-                combined.push(activeWorkoutEntry);
-            }
+            combined = combined.filter(h => new Date(h.date).toDateString() !== todayStr);
+            combined.push(activeWorkoutEntry);
         }
+
         return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [history, activeWorkoutEntry]);
 
@@ -68,10 +67,10 @@ export const Reports: React.FC = () => {
                                     </h3>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-2xl font-bold text-emerald-400">
-                                        {entry.exercises.filter(e => e.completed).length}/{entry.exercises.length}
+                                    <div className="text-3xl font-bold text-emerald-400">
+                                        {entry.exercises.filter(e => e.completed).length}
                                     </div>
-                                    <div className="text-xs text-slate-500">Completed</div>
+                                    <div className="text-xs text-slate-500 font-medium">COMPLETED</div>
                                 </div>
                             </div>
 
