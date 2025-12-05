@@ -2,6 +2,7 @@ import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
 import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Brain } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { triggerConfetti } from '../utils/confetti';
 
 export const Home: React.FC = () => {
     const {
@@ -309,7 +310,12 @@ const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, rep
                 {/* Actions */}
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => toggleExerciseCompletion(exercise.name)}
+                        onClick={() => {
+                            if (!exercise.completed) {
+                                triggerConfetti();
+                            }
+                            toggleExerciseCompletion(exercise.name);
+                        }}
                         className={`p-3 rounded-xl transition-all ${exercise.completed
                             ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                             : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
