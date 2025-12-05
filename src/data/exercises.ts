@@ -4,6 +4,7 @@ export interface Exercise {
     equipment: string;
     category: 'Push' | 'Pull' | 'Legs' | 'Core' | 'Full Body' | 'Cardio';
     muscleGroup: string;
+    type: 'Compound' | 'Isolation';
     gifUrl?: string;
 }
 
@@ -96,7 +97,8 @@ const generateExercises = (): Exercise[] => {
                 name: `${eq} ${move.name}`,
                 equipment: eq,
                 category: move.category as any,
-                muscleGroup: move.muscles
+                muscleGroup: move.muscles,
+                type: (['Squat', 'Deadlift', 'Press', 'Row', 'Pull-up', 'Chin-up', 'Dip', 'Lunge', 'Push-up', 'Burpee', 'Clean', 'Snatch', 'Thruster'].some(k => move.name.includes(k))) ? 'Compound' : 'Isolation'
             });
         });
     });

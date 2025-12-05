@@ -76,7 +76,8 @@ export const mapApiToInternal = (apiData: ApiExercise[]): Exercise[] => {
         equipment: normalizeEquipment(ex.equipment),
         category: mapTargetToCategory(ex.primaryMuscles[0] || '', ex.category),
         muscleGroup: ex.primaryMuscles[0] ? capitalize(ex.primaryMuscles[0]) : 'Full Body',
-        gifUrl: ex.images && ex.images.length > 0 ? `${IMAGE_BASE_URL}${ex.images[0]}` : undefined
+        gifUrl: ex.images && ex.images.length > 0 ? `${IMAGE_BASE_URL}${ex.images[0]}` : undefined,
+        type: 'Compound' // Default
     }));
 };
 

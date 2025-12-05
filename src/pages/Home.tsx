@@ -21,17 +21,63 @@ export const Home: React.FC = () => {
     // Removed handleComplete as we now auto-log via state
 
 
-    // AI Summary Generator (Mock)
-    // AI Summary Generator (Mock)
+    // AI Summary Generator (Smart Heuristic)
     const getAISummary = () => {
+        if (dailyWorkout.length === 0) return "Add equipment to generate a workout plan.";
+
         const focus = focusArea === 'Default' ? currentSplit : focusArea;
-        const strategies = [
-            `Today's strategy focuses on high-volume ${focus} work to maximize hypertrophy. We're hitting the muscle from multiple angles to ensure complete development.`,
-            `We're prioritizing ${focus} today with a mix of compound and isolation movements. Keep the intensity high and focus on the eccentric portion of the lift.`,
-            `Targeting ${focus} specifically today to bring up lagging areas. Ensure you're hitting full range of motion on every rep.`
-        ];
-        // Deterministic based on date/split so it doesn't jump around
-        return strategies[new Date().getDate() % strategies.length];
+        const compoundCount = dailyWorkout.filter(e => e.type === 'Compound').length;
+        const isolationCount = dailyWorkout.filter(e => e.type === 'Isolation').length;
+
+        // Find "Hero Lift" (first compound movement matching focus or just first compound)
+        const heroLift = dailyWorkout.find(e => e.type === 'Compound' && (e.muscleGroup === focus || focus === 'Default')) || dailyWorkout[0];
+
+        // Dynamic Tips Database
+        const tips: Record<string, string[]> = {
+            'Chest': [
+                "Focus on the stretch at the bottom and a hard squeeze at the top.",
+                "Keep your shoulders retracted to isolate the pecs.",
+                "Control the eccentric (lowering) phase for maximum growth."
+            ],
+            'Back': [
+                "Drive with your elbows, not your hands.",
+                "Think about squeezing a pencil between your shoulder blades.",
+                "Keep your chest up to engage the lats fully."
+            ],
+            'Legs': [
+                "Drive through your heels.",
+                "Keep your core braced tight throughout the movement.",
+                "Don't lock out your knees at the top to keep tension on the quads."
+            ],
+            'Shoulders': [
+                "Control the weight, don't use momentum.",
+                "Focus on the side delts for width.",
+                "Keep your traps relaxed."
+            ],
+            'Arms': [
+                "Keep your elbows pinned to your sides.",
+                "Squeeze the triceps hard at full extension.",
+                "Focus on the peak contraction for biceps."
+            ],
+            'Push': [
+                "Prioritize your heavy compound presses first.",
+                "Keep your elbows tucked at 45 degrees to protect your shoulders.",
+            ],
+            'Pull': [
+                "Initiate the pull with your lats, not your biceps.",
+                "Use straps if your grip fails before your back does.",
+            ],
+            'Bodyweight': [
+                "Focus on time under tension since you don't have heavy weights.",
+                "Explode up on the concentric phase.",
+                "Shorten your rest periods to keep the intensity high."
+            ]
+        };
+
+        const specificTips = tips[focus] || tips['Push']; // Fallback
+        const randomTip = specificTips[new Date().getDate() % specificTips.length];
+
+        return `Today's **${currentSplit}** session prioritizes your **${focus}**. You're starting strong with **${heroLift.name}**—${randomTip.toLowerCase()} This workout includes ${compoundCount} compound lifts for mass and ${isolationCount} isolation moves for detail.`;
     };
 
     return (
@@ -96,6 +142,7 @@ export const Home: React.FC = () => {
                             <option value="Legs">Focus: Legs</option>
                             <option value="Shoulders">Focus: Shoulders</option>
                             <option value="Arms">Focus: Arms</option>
+                            <option value="Bodyweight">Focus: Bodyweight / Travel</option>
                         </select>
                         <button
                             onClick={refreshWorkout}

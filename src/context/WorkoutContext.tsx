@@ -122,7 +122,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         equipment: d.equipment,
                         category: d.category,
                         muscleGroup: d.muscle_group,
-                        gifUrl: d.gif_url
+                        gifUrl: d.gif_url,
+                        type: 'Compound' // Default for DB loaded exercises if column missing
                     }));
                     setAllExercises(dbExercises);
                 } else {
@@ -569,7 +570,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Note: getAvailableExercises filters by equipment. We need to filter by muscle in loop
         // Actually getAvailableExercises takes (equipment, category).
         // Let's map Split -> Category
-        const availableForSplit = getAvailableExercises(state.equipment, 'Full Body'); // Get ALL available, we filter by muscle in loop
+
+        // If Focus is Bodyweight, override equipment to just 'Bodyweight'
+        const equipmentToUse = focusToUse === 'Bodyweight' ? 'Bodyweight' : state.equipment;
+
+        const availableForSplit = getAvailableExercises(equipmentToUse, 'Full Body'); // Get ALL available, we filter by muscle in loop
 
         // 2. Fill Slots
         slots.forEach(slot => {

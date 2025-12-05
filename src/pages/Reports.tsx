@@ -8,14 +8,14 @@ export const Reports: React.FC = () => {
 
     // Construct "Today's" entry if there are completed exercises
     const activeWorkoutEntry = React.useMemo(() => {
-        const completedCount = dailyWorkout.filter(e => e.completed).length;
-        if (completedCount === 0) return null;
+        const completedExercises = dailyWorkout.filter(e => e.completed);
+        if (completedExercises.length === 0) return null;
 
         return {
             date: new Date().toISOString(),
             split: currentSplit,
             focusArea: focusArea,
-            exercises: dailyWorkout,
+            exercises: completedExercises, // Only store completed ones
             isToday: true
         };
     }, [dailyWorkout, currentSplit, focusArea]);
@@ -76,19 +76,21 @@ export const Reports: React.FC = () => {
                             </div>
 
                             <div className="space-y-2">
-                                {entry.exercises.map((ex, i) => (
-                                    <div key={i} className={`flex items-center justify-between text-sm p-2 rounded-lg ${ex.completed ? 'bg-slate-800/50 text-slate-300' : 'bg-red-900/10 text-slate-500'}`}>
-                                        <span className="flex items-center gap-2">
-                                            {ex.completed ? (
-                                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                            ) : (
-                                                <div className="w-2 h-2 rounded-full bg-red-500" />
-                                            )}
+                                <div className="text-sm text-slate-400">
+                                    {entry.exercises.filter(e => e.completed).length} Exercises Completed
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                    {entry.exercises.filter(e => e.completed).slice(0, 3).map((ex, j) => (
+                                        <span key={j} className="text-[10px] px-2 py-1 bg-slate-700 rounded-full text-slate-300">
                                             {ex.name}
                                         </span>
-                                        <span className="text-xs opacity-50">{ex.muscleGroup}</span>
-                                    </div>
-                                ))}
+                                    ))}
+                                    {entry.exercises.filter(e => e.completed).length > 3 && (
+                                        <span className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full">
+                                            +{entry.exercises.filter(e => e.completed).length - 3} more
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))
