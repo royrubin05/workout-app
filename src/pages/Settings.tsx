@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Save, MinusCircle, X } from 'lucide-react';
+import { Save, MinusCircle, X, History } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const Settings: React.FC = () => {
     const {
@@ -70,6 +71,21 @@ export const Settings: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Reports Link */}
+            <Link to="/reports" className="block mb-8">
+                <div className="glass-card p-4 flex items-center justify-between group hover:bg-slate-800/80 transition-colors">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
+                            <History size={20} />
+                        </div>
+                        <div>
+                            <div className="font-medium text-white">Workout History & Reports</div>
+                            <div className="text-xs text-slate-400">View your past workouts and progress</div>
+                        </div>
+                    </div>
+                </div>
+            </Link>
 
             {/* My Equipment */}
             <div className="glass-card p-6">

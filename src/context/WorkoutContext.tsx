@@ -2,19 +2,31 @@ import type { Exercise } from '../data/exercises';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Extend Exercise to include completion status
+export interface WorkoutExercise extends Exercise {
+    completed?: boolean;
+}
+
+// Extend Exercise to include completion status
+export interface WorkoutExercise extends Exercise {
+    completed?: boolean;
+}
+
 interface WorkoutHistory {
     date: string;
     split: string;
-    exercises: Exercise[];
+    focusArea?: string;
+    exercises: WorkoutExercise[];
 }
 
 interface WorkoutState {
     equipment: string;
-    dailyWorkout: Exercise[];
+    dailyWorkout: WorkoutExercise[];
     lastWorkoutDate: string | null;
     history: WorkoutHistory[];
     completedToday: boolean;
     currentSplit: 'Push' | 'Pull' | 'Legs' | 'Full Body';
+    focusArea: string; // 'Default', 'Chest', 'Back', etc.
     excludedExercises: string[];
     connectionStatus: 'connected' | 'disconnected' | 'checking';
     connectionError: string | null;
@@ -23,13 +35,16 @@ interface WorkoutState {
 
 interface WorkoutContextType extends WorkoutState {
     updateEquipment: (eq: string) => void;
-    completeWorkout: () => void;
+    logWorkout: () => void;
     refreshWorkout: () => void;
     allExercises: Exercise[];
     getAvailableExercises: (eq: string, category?: string) => Exercise[];
     excludeExercise: (exerciseName: string) => void;
     restoreExercise: (exerciseName: string) => void;
     replaceExercise: (exerciseName: string) => void;
+    toggleExerciseCompletion: (exerciseName: string) => void;
+    reorderWorkout: (newOrder: WorkoutExercise[]) => void;
+    setFocusArea: (area: string) => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -44,6 +59,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         history: [],
         completedToday: false,
         currentSplit: 'Push', // Default start
+        focusArea: 'Default',
         excludedExercises: [],
         connectionStatus: 'checking',
         connectionError: null,
@@ -250,7 +266,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // 2. Load Cloud Data (Settings & State)
                 const { data: settingsData } = await supabase
                     .from('user_settings')
-                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today')
+                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area')
                     .eq('id', userId)
                     .single();
 
@@ -270,6 +286,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
                     const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
                     const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
+                    const newFocusArea = settingsData?.focus_area || prev.focusArea || 'Default';
 
                     // Merge history (avoid duplicates if any)
                     // Actually, cloud history should be the source of truth if we are syncing.
@@ -289,6 +306,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         dailyWorkout: newDailyWorkout,
                         lastWorkoutDate: newLastDate,
                         completedToday: newCompletedToday,
+                        focusArea: newFocusArea,
                         history: cloudHistory.length > 0 ? cloudHistory : prev.history,
                         connectionStatus: 'connected',
                         lastSyncTime: new Date().toLocaleTimeString()
@@ -327,6 +345,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     daily_workout: state.dailyWorkout,
                     last_workout_date: state.lastWorkoutDate,
                     completed_today: state.completedToday,
+                    focus_area: state.focusArea,
                     updated_at: new Date().toISOString()
                 });
 
@@ -341,7 +360,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Debounce or just run?
         const timeout = setTimeout(syncToCloud, 2000);
         return () => clearTimeout(timeout);
-    }, [state.equipment, state.excludedExercises, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday]); // Sync on ANY state change
+    }, [state.equipment, state.excludedExercises, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday, state.focusArea]); // Sync on ANY state change
 
     // Generate workout if needed
     useEffect(() => {
@@ -375,9 +394,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             setTimeout(() => generateWorkout(nextSplit), 0);
         } else if (!state.dailyWorkout.length) {
             // If it's still the same day but no workout has been generated yet (e.g., initial load)
-            generateWorkout(state.currentSplit);
+            generateWorkout(state.currentSplit, state.focusArea);
         }
-    }, [isLoaded, state.lastWorkoutDate, state.completedToday, state.currentSplit, state.dailyWorkout.length]);
+    }, [isLoaded, state.lastWorkoutDate, state.completedToday, state.currentSplit, state.dailyWorkout.length, state.focusArea]);
 
     // --- SMART MATCHING LOGIC ---
     const normalizeUserEquipment = (userInput: string): string[] => {
@@ -476,46 +495,67 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return filtered;
     };
 
-    const generateWorkout = (splitOverride?: string) => {
+    const generateWorkout = (splitOverride?: string, focusOverride?: string) => {
         // --- OPTIMAL PPL TEMPLATE LOGIC ---
 
         const splitToUse = splitOverride || state.currentSplit;
+        const focusToUse = focusOverride || state.focusArea;
 
         // 1. Define Slots for each split
         const getSlots = (split: string) => {
+            // Base Slots
+            let slots: { type: string, muscle: string, count: number }[] = [];
+
             if (split === 'Push') {
-                return [
-                    { type: 'Compound', muscle: 'Chest', count: 2 },      // e.g. Bench Press, Incline
-                    { type: 'Compound', muscle: 'Shoulders', count: 2 },  // e.g. Overhead Press, Arnold
-                    { type: 'Isolation', muscle: 'Chest', count: 1 },     // e.g. Flys
-                    { type: 'Isolation', muscle: 'Shoulders', count: 1 }, // e.g. Lateral Raises
-                    { type: 'Isolation', muscle: 'Triceps', count: 2 },   // e.g. Extensions, Pushdowns
+                slots = [
+                    { type: 'Compound', muscle: 'Chest', count: 2 },
+                    { type: 'Compound', muscle: 'Shoulders', count: 2 },
+                    { type: 'Isolation', muscle: 'Chest', count: 1 },
+                    { type: 'Isolation', muscle: 'Shoulders', count: 1 },
+                    { type: 'Isolation', muscle: 'Triceps', count: 2 },
                 ];
             } else if (split === 'Pull') {
-                return [
-                    { type: 'Compound', muscle: 'Back', count: 3 },       // e.g. Pull-ups, Rows, Lat Pulldowns
-                    { type: 'Isolation', muscle: 'Rear Delts', count: 1 },// e.g. Face Pulls
-                    { type: 'Isolation', muscle: 'Biceps', count: 3 },    // e.g. Curls, Hammer, Preacher
-                    { type: 'Isolation', muscle: 'Traps', count: 1 },     // e.g. Shrugs
+                slots = [
+                    { type: 'Compound', muscle: 'Back', count: 3 },
+                    { type: 'Isolation', muscle: 'Rear Delts', count: 1 },
+                    { type: 'Isolation', muscle: 'Biceps', count: 3 },
+                    { type: 'Isolation', muscle: 'Traps', count: 1 },
                 ];
             } else if (split === 'Legs') {
-                return [
-                    { type: 'Compound', muscle: 'Quads', count: 2 },      // e.g. Squat, Leg Press
-                    { type: 'Compound', muscle: 'Hamstrings', count: 2 }, // e.g. RDL, Leg Curls
-                    { type: 'Compound', muscle: 'Legs', count: 1 },       // e.g. Lunges
-                    { type: 'Isolation', muscle: 'Quads', count: 1 },     // e.g. Extensions
-                    { type: 'Isolation', muscle: 'Hamstrings', count: 1 },// e.g. Curls
-                    { type: 'Isolation', muscle: 'Calves', count: 1 },    // e.g. Calf Raises
+                slots = [
+                    { type: 'Compound', muscle: 'Quads', count: 2 },
+                    { type: 'Compound', muscle: 'Hamstrings', count: 2 },
+                    { type: 'Compound', muscle: 'Legs', count: 1 },
+                    { type: 'Isolation', muscle: 'Quads', count: 1 },
+                    { type: 'Isolation', muscle: 'Hamstrings', count: 1 },
+                    { type: 'Isolation', muscle: 'Calves', count: 1 },
+                ];
+            } else {
+                // Full Body
+                slots = [
+                    { type: 'Compound', muscle: 'Legs', count: 2 },
+                    { type: 'Compound', muscle: 'Chest', count: 2 },
+                    { type: 'Compound', muscle: 'Back', count: 2 },
+                    { type: 'Compound', muscle: 'Shoulders', count: 1 },
+                    { type: 'Isolation', muscle: 'Arms', count: 1 },
                 ];
             }
-            // Full Body Fallback
-            return [
-                { type: 'Compound', muscle: 'Legs', count: 2 },
-                { type: 'Compound', muscle: 'Chest', count: 2 },
-                { type: 'Compound', muscle: 'Back', count: 2 },
-                { type: 'Compound', muscle: 'Shoulders', count: 1 },
-                { type: 'Isolation', muscle: 'Arms', count: 1 },
-            ];
+
+            // --- FOCUS AREA OVERRIDE LOGIC ---
+            if (focusToUse && focusToUse !== 'Default') {
+                console.log(`🎯 Applying Focus Override: ${focusToUse}`);
+                // Strategy: Add 2 extra slots for the focus area, potentially replacing others or just adding on top.
+                // Let's replace 1-2 slots of "lesser" importance (Isolation) with Focus Compound/Isolation.
+
+                // 1. Add Focus Slots
+                slots.unshift({ type: 'Compound', muscle: focusToUse, count: 1 });
+                slots.push({ type: 'Isolation', muscle: focusToUse, count: 1 });
+
+                // 2. Cap total exercises to ~8-9
+                // (Logic handled by slice later or just let it be a bit longer)
+            }
+
+            return slots;
         };
 
         // 2. Select Exercises for each slot
@@ -526,14 +566,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const slots = getSlots(splitToUse);
 
         // Get ALL available exercises for this split (filtered by equipment & split)
-        // Note: getAvailableExercises filters by equipment. We need to filter by split manually or pass it?
+        // Note: getAvailableExercises filters by equipment. We need to filter by muscle in loop
         // Actually getAvailableExercises takes (equipment, category).
         // Let's map Split -> Category
-        const category = splitToUse === 'Push' ? 'Push' :
-            splitToUse === 'Pull' ? 'Pull' :
-                splitToUse === 'Legs' ? 'Legs' : 'Full Body';
-
-        const availableForSplit = getAvailableExercises(state.equipment, category);
+        const availableForSplit = getAvailableExercises(state.equipment, 'Full Body'); // Get ALL available, we filter by muscle in loop
 
         // 2. Fill Slots
         slots.forEach(slot => {
@@ -573,7 +609,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 3. Fallback if slots didn't fill enough (e.g. limited equipment)
         if (selectedExercises.length < 8) {
-            const remaining = getAvailableExercises(state.equipment, category)
+            const remaining = getAvailableExercises(state.equipment, splitToUse) // Use splitToUse as category for fallback
                 .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
                 .sort(() => 0.5 - Math.random())
                 .slice(0, 8 - selectedExercises.length);
@@ -593,15 +629,28 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // generateWorkout(); 
     };
 
-    const completeWorkout = async () => {
+    const logWorkout = async () => {
         const today = new Date().toISOString();
+
+        // Only log if at least one exercise is completed
+        const completedExercises = state.dailyWorkout.filter(ex => ex.completed);
+        if (completedExercises.length === 0) return;
+
         const newHistoryItem = {
             date: today,
             split: state.currentSplit,
+            focusArea: state.focusArea,
+            exercises: completedExercises // Log only what was done? Or all with status? Let's log all with status.
+        };
+        // Actually, let's log the whole workout state so we know what was skipped.
+        const historyEntry = {
+            date: today,
+            split: state.currentSplit,
+            focusArea: state.focusArea,
             exercises: state.dailyWorkout
         };
 
-        const newHistory = [...state.history, newHistoryItem];
+        const newHistory = [...state.history, historyEntry];
 
         setState(prev => ({
             ...prev,
@@ -639,20 +688,29 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             // Find a replacement
             // Use the same category logic as generateWorkout
-            const category = prev.currentSplit === 'Push' ? 'Push' :
-                prev.currentSplit === 'Pull' ? 'Pull' :
-                    prev.currentSplit === 'Legs' ? 'Legs' : 'Full Body';
+            // But if Focus Area is set, prioritize that!
+            const focusToUse = prev.focusArea;
 
-            const candidates = getAvailableExercises(prev.equipment, category).filter(ex =>
+            const candidates = getAvailableExercises(prev.equipment).filter(ex =>
                 ex.name !== oldExercise.name && // Not the same exercise
-                ex.muscleGroup === oldExercise.muscleGroup && // Same muscle group
                 !prev.excludedExercises.includes(ex.name) && // Not excluded
                 !currentWorkout.some(w => w.name === ex.name) // Not already in workout
             );
 
-            if (candidates.length > 0) {
-                const replacement = candidates[Math.floor(Math.random() * candidates.length)];
-                currentWorkout[index] = replacement;
+            // Filter by muscle group match OR Focus Area match
+            const validCandidates = candidates.filter(ex => {
+                // 1. Strict Muscle Match (Standard)
+                if (ex.muscleGroup === oldExercise.muscleGroup) return true;
+
+                // 2. Focus Area Match (If overriding)
+                if (focusToUse && focusToUse !== 'Default' && ex.muscleGroup.includes(focusToUse)) return true;
+
+                return false;
+            });
+
+            if (validCandidates.length > 0) {
+                const replacement = validCandidates[Math.floor(Math.random() * validCandidates.length)];
+                currentWorkout[index] = { ...replacement, completed: false }; // Reset completion on swap
                 return {
                     ...prev,
                     dailyWorkout: currentWorkout
@@ -661,6 +719,28 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             return prev; // No replacement found
         });
+    };
+
+    const toggleExerciseCompletion = (exerciseName: string) => {
+        setState(prev => ({
+            ...prev,
+            dailyWorkout: prev.dailyWorkout.map(ex =>
+                ex.name === exerciseName ? { ...ex, completed: !ex.completed } : ex
+            )
+        }));
+    };
+
+    const reorderWorkout = (newOrder: WorkoutExercise[]) => {
+        setState(prev => ({
+            ...prev,
+            dailyWorkout: newOrder
+        }));
+    };
+
+    const setFocusArea = (area: string) => {
+        setState(prev => ({ ...prev, focusArea: area }));
+        // Regenerate with new focus
+        setTimeout(() => generateWorkout(state.currentSplit, area), 0);
     };
 
     const getAllExercises = () => {
@@ -727,13 +807,16 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         <WorkoutContext.Provider value={{
             ...state,
             updateEquipment,
-            completeWorkout,
+            logWorkout,
             refreshWorkout,
             allExercises: getAllExercises(),
             getAvailableExercises,
             excludeExercise,
             restoreExercise,
-            replaceExercise
+            replaceExercise,
+            toggleExerciseCompletion,
+            reorderWorkout,
+            setFocusArea
         }}>
             <AnimatePresence mode="wait">
                 {!isLoaded ? (

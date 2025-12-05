@@ -1,188 +1,264 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { RefreshCw, MinusCircle, CheckCircle, CheckCircle2, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { RefreshCw, MinusCircle, CheckCircle, CheckCircle2, X, GripVertical, Brain, Save } from 'lucide-react';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
 export const Home: React.FC = () => {
-    const { dailyWorkout, refreshWorkout, currentSplit, excludeExercise, completeWorkout, completedToday, replaceExercise } = useWorkout();
-    const [showSuccessToast, setShowSuccessToast] = React.useState(false);
-    const [previewImage, setPreviewImage] = React.useState<{ url: string, name: string } | null>(null);
+    export const Home: React.FC = () => {
+        const {
+            dailyWorkout,
+            refreshWorkout,
+            currentSplit,
+            excludeExercise,
+            logWorkout,
+            completedToday,
+            replaceExercise,
+            reorderWorkout,
+            toggleExerciseCompletion,
+            focusArea,
+            setFocusArea
+        } = useWorkout();
+        const [showSuccessToast, setShowSuccessToast] = React.useState(false);
+        const [previewImage, setPreviewImage] = React.useState<{ url: string, name: string } | null>(null);
 
-    const handleComplete = () => {
-        completeWorkout();
-        setShowSuccessToast(true);
-        confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 }
-        });
-        setTimeout(() => setShowSuccessToast(false), 3000);
-    };
+        const handleComplete = () => {
+            logWorkout();
+            setShowSuccessToast(true);
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+            setTimeout(() => setShowSuccessToast(false), 3000);
+        };
 
-    return (
-        <div className="relative">
-            {/* Success Toast */}
-            <AnimatePresence>
-                {showSuccessToast && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20, x: '-50%' }}
-                        animate={{ opacity: 1, y: 0, x: '-50%' }}
-                        exit={{ opacity: 0, y: -20, x: '-50%' }}
-                        className="fixed top-6 left-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium whitespace-nowrap"
-                    >
-                        <CheckCircle2 size={20} />
-                        Workout Logged Successfully!
-                    </motion.div>
-                )}
-            </AnimatePresence>
+        // AI Summary Generator (Mock)
+        const getAISummary = () => {
+            const focus = focusArea === 'Default' ? currentSplit : focusArea;
+            const strategies = [
+                `Today's strategy focuses on high-volume ${focus} work to maximize hypertrophy. We're hitting the muscle from multiple angles to ensure complete development.`,
+                `We're prioritizing ${focus} today with a mix of compound and isolation movements. Keep the intensity high and focus on the eccentric portion of the lift.`,
+                `Targeting ${focus} specifically today to bring up lagging areas. Ensure you're hitting full range of motion on every rep.`
+            ];
+            // Deterministic based on date/split so it doesn't jump around
+            return strategies[new Date().getDate() % strategies.length];
+        };
 
-            {/* Image Preview Modal */}
-            <AnimatePresence>
-                {previewImage && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setPreviewImage(null)}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50">
-                                <h3 className="text-xl font-bold text-white">{previewImage.name}</h3>
-                                <button
-                                    onClick={() => setPreviewImage(null)}
-                                    className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
-                                >
-                                    <X size={24} />
-                                </button>
-                            </div>
-                            <div className="p-2 bg-black flex items-center justify-center min-h-[300px]">
-                                <img
-                                    src={previewImage.url}
-                                    alt={previewImage.name}
-                                    className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                                />
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            <div className="flex justify-between items-end mb-6">
-                <div>
-                    <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
-                        Today's Focus: <span className="text-white font-bold">{currentSplit}</span>
-                        <span className="text-slate-400 text-xs ml-2 normal-case tracking-normal">
-                            {currentSplit === 'Push' && '(Chest, Shoulders, Triceps)'}
-                            {currentSplit === 'Pull' && '(Back, Biceps, Rear Delts)'}
-                            {currentSplit === 'Legs' && '(Quads, Hamstrings, Calves)'}
-                            {currentSplit === 'Full Body' && '(Total Body)'}
-                        </span>
-                    </h2>
-                    <h3 className="text-2xl font-bold text-white">
-                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </h3>
-                </div>
-                <button
-                    onClick={refreshWorkout}
-                    className="p-2 text-slate-500 hover:text-white transition-colors"
-                    title="Regenerate Workout"
-                >
-                    <RefreshCw size={20} />
-                </button>
-            </div>
-
-            <div className="space-y-4 pb-24">
+        return (
+            <div className="relative">
+                {/* Success Toast */}
                 <AnimatePresence>
-                    {dailyWorkout.map((exercise, index) => (
+                    {showSuccessToast && (
                         <motion.div
-                            key={`${exercise.name}-${index}`}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="glass-card p-4 flex items-center gap-4 group"
+                            initial={{ opacity: 0, y: -20, x: '-50%' }}
+                            animate={{ opacity: 1, y: 0, x: '-50%' }}
+                            exit={{ opacity: 0, y: -20, x: '-50%' }}
+                            className="fixed top-6 left-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium whitespace-nowrap"
                         >
-                            <div
-                                className="w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700 cursor-pointer hover:border-blue-500 transition-colors"
-                                onClick={() => exercise.gifUrl && setPreviewImage({ url: exercise.gifUrl, name: exercise.name })}
-                            >
-                                {exercise.gifUrl ? (
-                                    <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <span>{index + 1}</span>
-                                )}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                                <h4 className="font-bold text-lg text-white mb-1 truncate">{exercise.name}</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    <span className="px-2 py-1 rounded-md bg-blue-500/20 text-blue-300 text-xs font-medium">
-                                        {exercise.equipment}
-                                    </span>
-                                    <span className="px-2 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium">
-                                        {exercise.muscleGroup}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col gap-1 items-center">
-                                <button
-                                    onClick={() => replaceExercise(exercise.name)}
-                                    className="p-2 text-slate-400 hover:text-blue-400 transition-colors bg-slate-800/50 rounded-lg hover:bg-slate-800"
-                                    title="Swap Exercise"
-                                >
-                                    <RefreshCw size={18} />
-                                </button>
-                                <button
-                                    onClick={() => excludeExercise(exercise.name)}
-                                    className="p-2 text-slate-600 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                    title="Exclude Exercise"
-                                >
-                                    <MinusCircle size={16} />
-                                </button>
-                            </div>
+                            <CheckCircle2 size={20} />
+                            Workout Logged Successfully!
                         </motion.div>
-                    ))}
+                    )}
                 </AnimatePresence>
 
-                {dailyWorkout.length > 0 && (
-                    <button
-                        onClick={handleComplete}
-                        disabled={completedToday}
-                        className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-8 ${completedToday
-                            ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
-                            : 'bg-green-500 hover:bg-green-600 text-white active:scale-95 shadow-green-500/20'
-                            }`}
-                    >
-                        {completedToday ? (
-                            <>
-                                <CheckCircle2 size={24} />
-                                Workout Completed
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle size={24} />
-                                Complete Workout
-                            </>
-                        )}
-                    </button>
-                )}
+                {/* Image Preview Modal */}
+                <AnimatePresence>
+                    {previewImage && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setPreviewImage(null)}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+                        >
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                className="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50">
+                                    <h3 className="text-xl font-bold text-white">{previewImage.name}</h3>
+                                    <button
+                                        onClick={() => setPreviewImage(null)}
+                                        className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                    >
+                                        <X size={24} />
+                                    </button>
+                                </div>
+                                <div className="p-2 bg-black flex items-center justify-center min-h-[300px]">
+                                    <img
+                                        src={previewImage.url}
+                                        alt={previewImage.name}
+                                        className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                                    />
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                {dailyWorkout.length === 0 && (
-                    <div className="text-center py-10 text-slate-500">
-                        <p>No exercises found for your equipment.</p>
-                        <p className="text-sm mt-2">Update your settings to add equipment.</p>
+                <div className="flex flex-col gap-4 mb-6">
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
+                                Today's Focus: <span className="text-white font-bold">{currentSplit}</span>
+                            </h2>
+                            <h3 className="text-2xl font-bold text-white">
+                                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            </h3>
+                        </div>
+                        <div className="flex gap-2">
+                            <select
+                                value={focusArea}
+                                onChange={(e) => setFocusArea(e.target.value)}
+                                className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                            >
+                                <option value="Default">Standard Split</option>
+                                <option value="Chest">Focus: Chest</option>
+                                <option value="Back">Focus: Back</option>
+                                <option value="Legs">Focus: Legs</option>
+                                <option value="Shoulders">Focus: Shoulders</option>
+                                <option value="Arms">Focus: Arms</option>
+                            </select>
+                            <button
+                                onClick={refreshWorkout}
+                                className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
+                                title="Regenerate Workout"
+                            >
+                                <RefreshCw size={20} />
+                            </button>
+                        </div>
                     </div>
-                )}
+
+                    {/* AI Summary Card */}
+                    <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 p-4 rounded-xl border border-indigo-500/30 flex gap-3 items-start">
+                        <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-300 shrink-0">
+                            <Brain size={20} />
+                        </div>
+                        <div>
+                            <h4 className="text-indigo-200 font-bold text-sm mb-1">AI Strategy Insight</h4>
+                            <p className="text-indigo-100/80 text-sm leading-relaxed">
+                                {getAISummary()}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pb-24">
+                    <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3">
+                        <AnimatePresence>
+                            {dailyWorkout.map((exercise) => (
+                                <Reorder.Item
+                                    key={exercise.name}
+                                    value={exercise}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    className="relative"
+                                >
+                                    <div className={`glass-card p-4 flex items-center gap-4 group transition-all ${exercise.completed ? 'opacity-60 bg-slate-900/50' : ''}`}>
+                                        {/* Drag Handle */}
+                                        <div className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400">
+                                            <GripVertical size={20} />
+                                        </div>
+
+                                        {/* Image */}
+                                        <div
+                                            className={`w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700 cursor-pointer hover:border-blue-500 transition-colors ${exercise.completed ? 'grayscale' : ''}`}
+                                            onClick={() => exercise.gifUrl && setPreviewImage({ url: exercise.gifUrl, name: exercise.name })}
+                                        >
+                                            {exercise.gifUrl ? (
+                                                <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span>{exercise.name[0]}</span>
+                                            )}
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className={`font-bold text-lg text-white mb-1 truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
+                                                {exercise.name}
+                                            </h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                <span className="px-2 py-1 rounded-md bg-blue-500/20 text-blue-300 text-xs font-medium">
+                                                    {exercise.equipment}
+                                                </span>
+                                                <span className="px-2 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium">
+                                                    {exercise.muscleGroup}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => toggleExerciseCompletion(exercise.name)}
+                                                className={`p-3 rounded-xl transition-all ${exercise.completed
+                                                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                                    }`}
+                                            >
+                                                <CheckCircle2 size={24} />
+                                            </button>
+
+                                            <div className="flex flex-col gap-1">
+                                                <button
+                                                    onClick={() => replaceExercise(exercise.name)}
+                                                    className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
+                                                    title="Swap Exercise"
+                                                >
+                                                    <RefreshCw size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => excludeExercise(exercise.name)}
+                                                    className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                                                    title="Exclude Exercise"
+                                                >
+                                                    <MinusCircle size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Reorder.Item>
+                            ))}
+                        </AnimatePresence>
+                    </Reorder.Group>
+
+                    {dailyWorkout.length > 0 && (
+                        <button
+                            onClick={handleComplete}
+                            disabled={completedToday || dailyWorkout.filter(e => e.completed).length === 0}
+                            className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-8 ${completedToday
+                                    ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
+                                    : dailyWorkout.filter(e => e.completed).length > 0
+                                        ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
+                                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                }`}
+                        >
+                            {completedToday ? (
+                                <>
+                                    <CheckCircle2 size={24} />
+                                    Workout Logged
+                                </>
+                            ) : (
+                                <>
+                                    <Save size={24} />
+                                    Log Completed Exercises ({dailyWorkout.filter(e => e.completed).length})
+                                </>
+                            )}
+                        </button>
+                    )}
+
+                    {dailyWorkout.length === 0 && (
+                        <div className="text-center py-10 text-slate-500">
+                            <p>No exercises found for your equipment.</p>
+                            <p className="text-sm mt-2">Update your settings to add equipment.</p>
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
-    );
-};
+        );
+    };
