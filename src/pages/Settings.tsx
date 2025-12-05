@@ -139,47 +139,7 @@ export const Settings: React.FC = () => {
                 </div>
             </div>
 
-            {/* Workout History */}
-            <div className="glass-card p-6">
-                <h3 className="text-xl font-bold text-white mb-4">Workout History</h3>
-                {history.length === 0 ? (
-                    <div className="text-center text-slate-500 py-8">
-                        No workouts completed yet.
-                    </div>
-                ) : (
-                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                        {history.slice().reverse().map((entry, i) => (
-                            <div
-                                key={i}
-                                onClick={() => setViewingHistoryItem(entry)}
-                                className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/30 cursor-pointer hover:bg-slate-800 transition-colors group"
-                            >
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{entry.split || 'Workout'}</div>
-                                    <div className="text-xs text-slate-400">
-                                        {new Date(entry.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                                    </div>
-                                </div>
-                                <div className="text-sm text-slate-400">
-                                    {entry.exercises.length} Exercises Completed
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-1">
-                                    {entry.exercises.slice(0, 3).map((ex, j) => (
-                                        <span key={j} className="text-[10px] px-2 py-1 bg-slate-700 rounded-full text-slate-300">
-                                            {ex.name}
-                                        </span>
-                                    ))}
-                                    {entry.exercises.length > 3 && (
-                                        <span className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-300 rounded-full">
-                                            +{entry.exercises.length - 3} more
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+
 
             {/* Available Exercises Modal */}
             {showModal && (

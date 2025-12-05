@@ -1,8 +1,7 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Brain, Save } from 'lucide-react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import confetti from 'canvas-confetti';
+import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Brain } from 'lucide-react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 
 export const Home: React.FC = () => {
     const {
@@ -10,28 +9,19 @@ export const Home: React.FC = () => {
         refreshWorkout,
         currentSplit,
         excludeExercise,
-        logWorkout,
-        completedToday,
+
         replaceExercise,
         reorderWorkout,
         toggleExerciseCompletion,
         focusArea,
         setFocusArea
     } = useWorkout();
-    const [showSuccessToast, setShowSuccessToast] = React.useState(false);
     const [previewImage, setPreviewImage] = React.useState<{ url: string, name: string } | null>(null);
 
-    const handleComplete = () => {
-        logWorkout();
-        setShowSuccessToast(true);
-        confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 }
-        });
-        setTimeout(() => setShowSuccessToast(false), 3000);
-    };
+    // Removed handleComplete as we now auto-log via state
 
+
+    // AI Summary Generator (Mock)
     // AI Summary Generator (Mock)
     const getAISummary = () => {
         const focus = focusArea === 'Default' ? currentSplit : focusArea;
@@ -46,21 +36,6 @@ export const Home: React.FC = () => {
 
     return (
         <div className="relative">
-            {/* Success Toast */}
-            <AnimatePresence>
-                {showSuccessToast && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20, x: '-50%' }}
-                        animate={{ opacity: 1, y: 0, x: '-50%' }}
-                        exit={{ opacity: 0, y: -20, x: '-50%' }}
-                        className="fixed top-6 left-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium whitespace-nowrap"
-                    >
-                        <CheckCircle2 size={20} />
-                        Workout Logged Successfully!
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             {/* Image Preview Modal */}
             <AnimatePresence>
                 {previewImage && (
@@ -150,106 +125,17 @@ export const Home: React.FC = () => {
                 <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3">
                     <AnimatePresence>
                         {dailyWorkout.map((exercise) => (
-                            <Reorder.Item
+                            <ExerciseItem
                                 key={exercise.name}
-                                value={exercise}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="relative"
-                            >
-                                <div className={`glass-card p-4 flex items-center gap-4 group transition-all ${exercise.completed ? 'opacity-60 bg-slate-900/50' : ''}`}>
-                                    {/* Drag Handle */}
-                                    <div className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400">
-                                        <GripVertical size={20} />
-                                    </div>
-
-                                    {/* Image */}
-                                    <div
-                                        className={`w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700 cursor-pointer hover:border-blue-500 transition-colors ${exercise.completed ? 'grayscale' : ''}`}
-                                        onClick={() => exercise.gifUrl && setPreviewImage({ url: exercise.gifUrl, name: exercise.name })}
-                                    >
-                                        {exercise.gifUrl ? (
-                                            <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <span>{exercise.name[0]}</span>
-                                        )}
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className={`font-bold text-lg text-white mb-1 truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
-                                            {exercise.name}
-                                        </h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            <span className="px-2 py-1 rounded-md bg-blue-500/20 text-blue-300 text-xs font-medium">
-                                                {exercise.equipment}
-                                            </span>
-                                            <span className="px-2 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium">
-                                                {exercise.muscleGroup}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => toggleExerciseCompletion(exercise.name)}
-                                            className={`p-3 rounded-xl transition-all ${exercise.completed
-                                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                                }`}
-                                        >
-                                            <CheckCircle2 size={24} />
-                                        </button>
-
-                                        <div className="flex flex-col gap-1">
-                                            <button
-                                                onClick={() => replaceExercise(exercise.name)}
-                                                className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
-                                                title="Swap Exercise"
-                                            >
-                                                <RefreshCw size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => excludeExercise(exercise.name)}
-                                                className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
-                                                title="Exclude Exercise"
-                                            >
-                                                <MinusCircle size={16} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </Reorder.Item>
+                                exercise={exercise}
+                                toggleExerciseCompletion={toggleExerciseCompletion}
+                                setPreviewImage={setPreviewImage}
+                                replaceExercise={replaceExercise}
+                                excludeExercise={excludeExercise}
+                            />
                         ))}
                     </AnimatePresence>
                 </Reorder.Group>
-
-                {dailyWorkout.length > 0 && (
-                    <button
-                        onClick={handleComplete}
-                        disabled={completedToday || dailyWorkout.filter(e => e.completed).length === 0}
-                        className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-8 ${completedToday
-                            ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
-                            : dailyWorkout.filter(e => e.completed).length > 0
-                                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
-                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                            }`}
-                    >
-                        {completedToday ? (
-                            <>
-                                <CheckCircle2 size={24} />
-                                Workout Logged
-                            </>
-                        ) : (
-                            <>
-                                <Save size={24} />
-                                Log Completed Exercises ({dailyWorkout.filter(e => e.completed).length})
-                            </>
-                        )}
-                    </button>
-                )}
 
                 {dailyWorkout.length === 0 && (
                     <div className="text-center py-10 text-slate-500">
@@ -259,5 +145,89 @@ export const Home: React.FC = () => {
                 )}
             </div>
         </div>
+    );
+};
+
+// Extracted component for Drag Controls
+const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, replaceExercise, excludeExercise }: any) => {
+    const controls = useDragControls();
+
+    return (
+        <Reorder.Item
+            value={exercise}
+            dragListener={false}
+            dragControls={controls}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="relative"
+        >
+            <div className={`glass-card p-4 flex items-center gap-4 group transition-all ${exercise.completed ? 'opacity-60 bg-slate-900/50' : ''}`}>
+                {/* Drag Handle - ONLY this triggers drag */}
+                <div
+                    className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400 p-2 -ml-2 touch-none"
+                    onPointerDown={(e) => controls.start(e)}
+                >
+                    <GripVertical size={20} />
+                </div>
+
+                {/* Image */}
+                <div
+                    className={`w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700 cursor-pointer hover:border-blue-500 transition-colors ${exercise.completed ? 'grayscale' : ''}`}
+                    onClick={() => exercise.gifUrl && setPreviewImage({ url: exercise.gifUrl, name: exercise.name })}
+                >
+                    {exercise.gifUrl ? (
+                        <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
+                    ) : (
+                        <span>{exercise.name[0]}</span>
+                    )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                    <h4 className={`font-bold text-lg text-white mb-1 truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
+                        {exercise.name}
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 rounded-md bg-blue-500/20 text-blue-300 text-xs font-medium">
+                            {exercise.equipment}
+                        </span>
+                        <span className="px-2 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium">
+                            {exercise.muscleGroup}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => toggleExerciseCompletion(exercise.name)}
+                        className={`p-3 rounded-xl transition-all ${exercise.completed
+                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            }`}
+                    >
+                        <CheckCircle2 size={24} />
+                    </button>
+
+                    <div className="flex flex-col gap-1">
+                        <button
+                            onClick={() => replaceExercise(exercise.name)}
+                            className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
+                            title="Swap Exercise"
+                        >
+                            <RefreshCw size={16} />
+                        </button>
+                        <button
+                            onClick={() => excludeExercise(exercise.name)}
+                            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                            title="Exclude Exercise"
+                        >
+                            <MinusCircle size={16} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Reorder.Item>
     );
 };

@@ -717,12 +717,19 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     const toggleExerciseCompletion = (exerciseName: string) => {
-        setState(prev => ({
-            ...prev,
-            dailyWorkout: prev.dailyWorkout.map(ex =>
+        setState(prev => {
+            const newDaily = prev.dailyWorkout.map(ex =>
                 ex.name === exerciseName ? { ...ex, completed: !ex.completed } : ex
-            )
-        }));
+            );
+            const hasCompleted = newDaily.some(ex => ex.completed);
+
+            return {
+                ...prev,
+                dailyWorkout: newDaily,
+                completedToday: hasCompleted,
+                lastWorkoutDate: hasCompleted ? new Date().toDateString() : prev.lastWorkoutDate
+            };
+        });
     };
 
     const reorderWorkout = (newOrder: WorkoutExercise[]) => {

@@ -4,10 +4,36 @@ import { ArrowLeft, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const Reports: React.FC = () => {
-    const { history } = useWorkout();
+    const { history, dailyWorkout, currentSplit, focusArea } = useWorkout();
 
-    // Sort history by date desc
-    const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Construct "Today's" entry if there are completed exercises
+    const activeWorkoutEntry = React.useMemo(() => {
+        const completedCount = dailyWorkout.filter(e => e.completed).length;
+        if (completedCount === 0) return null;
+
+        return {
+            date: new Date().toISOString(),
+            split: currentSplit,
+            focusArea: focusArea,
+            exercises: dailyWorkout,
+            isToday: true
+        };
+    }, [dailyWorkout, currentSplit, focusArea]);
+
+    // Merge and sort
+    const sortedHistory = React.useMemo(() => {
+        const combined = [...history];
+        if (activeWorkoutEntry) {
+            // Check if we already have an entry for today in history to avoid dupes
+            // (Though our logic prevents double logging, this is safe)
+            const todayStr = new Date().toDateString();
+            const hasToday = combined.some(h => new Date(h.date).toDateString() === todayStr);
+            if (!hasToday) {
+                combined.push(activeWorkoutEntry);
+            }
+        }
+        return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [history, activeWorkoutEntry]);
 
     return (
         <div className="min-h-screen pb-24">
