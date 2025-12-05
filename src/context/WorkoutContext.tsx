@@ -746,8 +746,30 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     const setFocusArea = (area: string) => {
-        setState(prev => ({ ...prev, focusArea: area }));
-        // Regenerate with new focus
+        // 1. Capture currently completed exercises to prevent data loss on switch
+        const completedEx = state.dailyWorkout.filter(e => e.completed);
+
+        setState(prev => {
+            const newState = { ...prev, focusArea: area };
+
+            // If the user has done some work, archive it to history before we wipe the slate
+            if (completedEx.length > 0) {
+                const historyEntry: WorkoutHistory = {
+                    date: new Date().toISOString(),
+                    split: prev.currentSplit,
+                    focusArea: prev.focusArea, // Log under the OLD focus area
+                    exercises: completedEx
+                };
+                newState.history = [...prev.history, historyEntry];
+                newState.completedToday = true;
+
+                // Trigger sync effectively by updating state
+                newState.lastSyncTime = null; // Force sync check if needed, or rely on effect deps
+            }
+            return newState;
+        });
+
+        // 2. Regenerate with new focus
         setTimeout(() => generateWorkout(state.currentSplit, area), 0);
     };
 

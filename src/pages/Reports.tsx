@@ -25,9 +25,7 @@ export const Reports: React.FC = () => {
         let combined = [...history];
 
         if (activeWorkoutEntry) {
-            // ALWAYS prioritize the active/live workout for today over any stored history
-            const todayStr = new Date().toDateString();
-            combined = combined.filter(h => new Date(h.date).toDateString() !== todayStr);
+            // Add the active/live workout for today to the list (without removing partial history from today)
             combined.push(activeWorkoutEntry);
         }
 
