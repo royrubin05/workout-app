@@ -648,7 +648,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         return {
                             id: existing?.id || `ai-${idx}-${Date.now()}`,
                             name: existing?.name || step.name,
-                            category: existing?.category || splitToUse,
+                            category: (existing?.category || splitToUse) as any,
                             muscleGroup: existing?.muscleGroup || focusToUse,
                             equipment: existing?.equipment || 'Bodyweight',
                             gifUrl: existing?.gifUrl,

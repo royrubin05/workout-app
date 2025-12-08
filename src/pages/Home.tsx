@@ -199,74 +199,73 @@ export const Home: React.FC = () => {
             <div className="flex flex-col gap-4">
                 <h1 className="text-3xl font-bold text-white">Your Workout</h1>
                 {/* Customize Button Removed or Replaced if needed */}
-            </div>
 
-            <div className="flex items-center gap-2">
-                <select
-                    value={customWorkoutActive ? 'Custom' : focusArea}
-                    onChange={(e) => {
-                        if (e.target.value === 'Custom') return; // Don't do anything, button handles it
-                        if (customWorkoutActive) clearCustomWorkout(); // Clear custom if they pick dropdown
-                        setFocusArea(e.target.value);
-                    }}
-                    className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-500"
-                >
-                    <option value="Default">Standard Split</option>
-                    <option value="Chest">Focus: Chest</option>
-                    <option value="Back">Focus: Back</option>
-                    <option value="Legs">Focus: Legs</option>
-                    <option value="Shoulders">Focus: Shoulders</option>
-                    <option value="Arms">Focus: Arms</option>
-                    <option value="Bodyweight">Focus: Bodyweight / Travel</option>
-                    {customWorkoutActive && <option value="Custom">Custom Selection</option>}
-                </select>
-                <button
-                    onClick={refreshWorkout}
-                    className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
-                    title="Regenerate Workout"
-                >
-                    <RefreshCw size={20} />
-                </button>
-            </div>
-
-            {/* AI Summary Card */}
-            <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 p-4 rounded-xl border border-indigo-500/30 flex gap-3 items-start animate-in fade-in slide-in-from-top-4 duration-700">
-                <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-300 shrink-0">
-                    <Zap size={20} />
+                <div className="flex items-center gap-2">
+                    <select
+                        value={customWorkoutActive ? 'Custom' : focusArea}
+                        onChange={(e) => {
+                            if (e.target.value === 'Custom') return; // Don't do anything, button handles it
+                            if (customWorkoutActive) clearCustomWorkout(); // Clear custom if they pick dropdown
+                            setFocusArea(e.target.value);
+                        }}
+                        className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-500"
+                    >
+                        <option value="Default">Standard Split</option>
+                        <option value="Chest">Focus: Chest</option>
+                        <option value="Back">Focus: Back</option>
+                        <option value="Legs">Focus: Legs</option>
+                        <option value="Shoulders">Focus: Shoulders</option>
+                        <option value="Arms">Focus: Arms</option>
+                        <option value="Bodyweight">Focus: Bodyweight / Travel</option>
+                        {customWorkoutActive && <option value="Custom">Custom Selection</option>}
+                    </select>
+                    <button
+                        onClick={refreshWorkout}
+                        className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
+                        title="Regenerate Workout"
+                    >
+                        <RefreshCw size={20} />
+                    </button>
                 </div>
-                <div>
-                    <h4 className="text-indigo-200 font-bold text-sm mb-1">AI Strategy Insight</h4>
-                    <p className="text-indigo-100/80 text-sm leading-relaxed">
-                        {getAISummary()}
-                    </p>
+
+                {/* AI Summary Card */}
+                <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 p-4 rounded-xl border border-indigo-500/30 flex gap-3 items-start animate-in fade-in slide-in-from-top-4 duration-700">
+                    <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-300 shrink-0">
+                        <Zap size={20} />
+                    </div>
+                    <div>
+                        <h4 className="text-indigo-200 font-bold text-sm mb-1">AI Strategy Insight</h4>
+                        <p className="text-indigo-100/80 text-sm leading-relaxed">
+                            {getAISummary()}
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
 
-            {/* Exercise List */ }
-    <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8">
-        <AnimatePresence mode="popLayout">
-            {dailyWorkout.map((exercise) => (
-                <ExerciseItem
-                    key={exercise.id || exercise.name}
-                    exercise={exercise}
-                    toggleExerciseCompletion={toggleExerciseCompletion}
-                    setPreviewImage={setPreviewImage}
-                    replaceExercise={replaceExercise}
-                    excludeExercise={excludeExercise}
-                />
-            ))}
-        </AnimatePresence>
-    </Reorder.Group>
+            {/* Exercise List */}
+            <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8">
+                <AnimatePresence mode="popLayout">
+                    {dailyWorkout.map((exercise) => (
+                        <ExerciseItem
+                            key={exercise.id || exercise.name}
+                            exercise={exercise}
+                            toggleExerciseCompletion={toggleExerciseCompletion}
+                            setPreviewImage={setPreviewImage}
+                            replaceExercise={replaceExercise}
+                            excludeExercise={excludeExercise}
+                        />
+                    ))}
+                </AnimatePresence>
+            </Reorder.Group>
 
-    {
-        dailyWorkout.length === 0 && (
-            <div className="text-center py-10 text-slate-500">
-                <p>No exercises found for your equipment.</p>
-                <p className="text-sm mt-2">Update your settings to add equipment.</p>
-            </div>
-        )
-    }
+            {
+                dailyWorkout.length === 0 && (
+                    <div className="text-center py-10 text-slate-500">
+                        <p>No exercises found for your equipment.</p>
+                        <p className="text-sm mt-2">Update your settings to add equipment.</p>
+                    </div>
+                )
+            }
         </div >
     );
 };
