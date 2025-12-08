@@ -19,7 +19,8 @@ export const Settings: React.FC = () => {
         updateUserEquipmentProfile,
         openaiApiKey,
         setOpenaiApiKey,
-        connectionStatus
+        connectionStatus,
+        testPersistence // added
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
@@ -104,24 +105,41 @@ export const Settings: React.FC = () => {
             </div>
 
             {/* AI Key Input */}
+            {/* AI Key Input */}
             {showKeyInput && (
-                <div className="bg-slate-900/80 border border-slate-700 p-4 rounded-xl animate-in fade-in slide-in-from-top-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">
-                        OpenAI API Key
+                <div className="bg-slate-800/80 p-4 rounded-xl border border-indigo-500/30 mb-4 animate-in slide-in-from-top-2">
+                    <label className="text-xs font-bold text-indigo-300 mb-2 block">
+                        OPENAI API KEY
                     </label>
                     <div className="flex gap-2">
                         <input
-                            type="password"
+                            type="text"
                             value={apiKey}
-                            onChange={(e) => handleSaveKey(e.target.value)}
+                            onChange={(e) => setApiKey(e.target.value)}
                             placeholder="sk-..."
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                         />
+                        <button
+                            onClick={() => handleSaveKey(apiKey)}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold"
+                        >
+                            SAVE
+                        </button>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-2">
-                        Your key is stored locally on this device. We use `gpt-4o-mini` for smart features.
-                        <br />Without a key, we use a basic offline simulation.
+                    <p className="text-xs text-slate-500 mt-2">
+                        This key is stored securely on your device and synced to your private database.
                     </p>
+                    <div className="mt-4 pt-4 border-t border-slate-700/50">
+                        <button
+                            onClick={async () => {
+                                const result = await testPersistence();
+                                alert(result);
+                            }}
+                            className="text-[10px] text-slate-500 hover:text-white underline"
+                        >
+                            Debug: Test Database Persistence
+                        </button>
+                    </div>
                 </div>
             )}
 

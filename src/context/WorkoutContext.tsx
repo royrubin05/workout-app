@@ -61,6 +61,7 @@ interface WorkoutContextType extends WorkoutState {
     deleteCustomExercise: (exerciseName: string) => void;
     updateUserEquipmentProfile: (profile: string) => Promise<void>;
     setOpenaiApiKey: (key: string) => void;
+    testPersistence: () => Promise<string>;
     // ...
 }
 
@@ -1221,9 +1222,30 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // setTimeout(() => generateWorkout(state.currentSplit), 100);
     };
 
-    const setOpenaiApiKey = (key: string) => {
+    const setOpenaiApiKey = async (key: string) => {
+        // 1. Update State & Local
         setState(prev => ({ ...prev, openaiApiKey: key }));
-        localStorage.setItem('openai_api_key', key); // Keep local backup
+        localStorage.setItem('openai_api_key', key);
+
+        // 2. Force Immediate Save to DB
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { error } = await supabase.from('user_settings').update({ openai_api_key: key }).eq('id', user.id);
+            if (error) console.error("Force Save Key Failed:", error);
+            else console.log("Force Save Key Success");
+        }
+    };
+
+    const testPersistence = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return "User not logged in";
+
+        const testKey = `test-key-${Date.now()}`;
+        // Write
+        await supabase.from('user_settings').upsert({ id: user.id, openai_api_key: testKey });
+        // Read
+        const { data } = await supabase.from('user_settings').select('openai_api_key').eq('id', user.id).single();
+        return data?.openai_api_key === testKey ? "SUCCESS: Read/Write confirmed" : "FAILURE: Read mismatch";
     };
 
     const value = {
@@ -1245,7 +1267,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addCustomExercise,
         deleteCustomExercise,
         updateUserEquipmentProfile,
-        setOpenaiApiKey
+        setOpenaiApiKey,
+        testPersistence
     };
 
     return (
