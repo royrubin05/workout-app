@@ -122,7 +122,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         muscleGroup: d.muscle_group, // Map DB 'muscle_group' -> App 'muscleGroup'
                         equipment: d.equipment,
                         type: 'Compound', // Default for now, or map if DB has it
-                        // description: d.description, // Not in Exercise interface yet?
+                        gifUrl: d.gif_url, // Map snake_case DB to camelCase prop
                         id: d.id || `db-${Math.random()}`
                     }));
                     setAllExercises(dbExercises);
@@ -137,7 +137,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         muscleGroup: ex.muscles, // Map
                         equipment: ex.equipment,
                         type: 'Compound', // Default
-                        muscles: ex.muscles
+                        muscles: ex.muscle_group, // Ensure muscle_group is mapped if needed, or stick to 'muscles' logic
+                        gifUrl: ex.gif_url // Map snake_case DB to camelCase prop
                     }));
                     setAllExercises(staticExercises);
                     setState(prev => ({ ...prev, connectionStatus: 'connected' }));

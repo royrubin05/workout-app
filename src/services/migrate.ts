@@ -2,8 +2,8 @@ import { supabase } from './supabase';
 import { BASE_MOVEMENTS } from '../data/exercises';
 import { fetchExercisesFromAPI, mapApiToInternal } from './exerciseDB';
 
-export const migrateExercises = async () => {
-    console.log('Starting Migration...');
+export const migrateExercises = async (force: boolean = false) => {
+    console.log(`Starting Migration (Force: ${force})...`);
 
     // 1. Check if table is empty
     const { count, error } = await supabase
@@ -15,9 +15,15 @@ export const migrateExercises = async () => {
         return { success: false, message: 'Connection Error' };
     }
 
-    if (count && count > 0) {
+    if (!force && count && count > 0) {
         console.log('Data already exists. Skipping migration.');
         return { success: true, message: 'Already migrated' };
+    }
+
+    if (force) {
+        console.log('Force migration: clearing existing data...');
+        const { error: deleteError } = await supabase.from('exercises').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all (assuming UUIDs)
+        if (deleteError) console.warn('Clear table failed (ignoring):', deleteError);
     }
 
     // 2. Prepare Data (Prefer API -> Fallback to Static)

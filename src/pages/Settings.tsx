@@ -438,12 +438,16 @@ export const Settings: React.FC = () => {
                 v1.2.0 • Data auto-synced
                 <button
                     onClick={async () => {
-                        const res = await migrateExercises();
+                        const confirmForce = window.confirm("Reset Database? This will delete all exercises and re-fetch from API.");
+                        if (!confirmForce) return;
+
+                        const res = await migrateExercises(true); // Force = true
                         alert(res.message);
+                        if (res.success) window.location.reload();
                     }}
-                    className="block mx-auto mt-2 text-slate-800 hover:text-slate-600"
+                    className="block mx-auto mt-2 text-slate-800 hover:text-red-600 underline"
                 >
-                    Run DB Migration
+                    Run DB Migration (Reset Data)
                 </button>
             </div>
         </div>
