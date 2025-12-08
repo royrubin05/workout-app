@@ -15,9 +15,7 @@ export const Settings: React.FC = () => {
         customExercises,
         addCustomExercise,
         deleteCustomExercise,
-        connectionStatus,
-        lastSyncTime,
-        connectionError
+        connectionStatus
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
@@ -93,8 +91,8 @@ export const Settings: React.FC = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id
-                                ? 'bg-slate-800 text-white shadow-sm'
-                                : 'text-slate-500 hover:text-slate-300'
+                            ? 'bg-slate-800 text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-300'
                             }`}
                     >
                         <tab.icon size={16} className={activeTab === tab.id ? 'text-blue-400' : ''} />
@@ -116,8 +114,8 @@ export const Settings: React.FC = () => {
                                         key={eq}
                                         onClick={() => updateEquipment(eq)}
                                         className={`p-3 rounded-xl border text-left transition-all ${equipment === eq
-                                                ? 'bg-blue-500/20 border-blue-500 text-blue-400 font-bold'
-                                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                                            ? 'bg-blue-500/20 border-blue-500 text-blue-400 font-bold'
+                                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
                                             }`}
                                     >
                                         {eq}

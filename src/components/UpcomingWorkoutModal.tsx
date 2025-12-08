@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarDays, X, ChevronRight } from 'lucide-react';
-import { useWorkout, WorkoutExercise } from '../context/WorkoutContext';
+import { CalendarDays, X } from 'lucide-react';
+import { useWorkout } from '../context/WorkoutContext';
+import type { WorkoutExercise } from '../context/WorkoutContext';
 
 interface UpcomingWorkoutModalProps {
     isOpen: boolean;
@@ -9,7 +10,7 @@ interface UpcomingWorkoutModalProps {
 }
 
 export const UpcomingWorkoutModal: React.FC<UpcomingWorkoutModalProps> = ({ isOpen, onClose }) => {
-    const { currentSplit, getAvailableExercises, equipment, focusArea } = useWorkout();
+    const { currentSplit, getAvailableExercises, equipment } = useWorkout();
     const [previewWorkout, setPreviewWorkout] = useState<WorkoutExercise[]>([]);
     const [nextSplit, setNextSplit] = useState('');
 
