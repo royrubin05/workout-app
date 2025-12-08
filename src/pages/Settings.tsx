@@ -38,10 +38,10 @@ export const Settings: React.FC = () => {
 
     // Sync local state with context on load
     React.useEffect(() => {
-        // We pull this from context if available
-        const saved = localStorage.getItem('user_equipment_profile');
-        if (saved) setLocalProfile(saved);
-    }, []);
+        if (userEquipmentProfile) {
+            setLocalProfile(userEquipmentProfile);
+        }
+    }, [userEquipmentProfile]);
 
     // Save API Key
     const handleSaveKey = (key: string) => {
