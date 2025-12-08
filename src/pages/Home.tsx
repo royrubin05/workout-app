@@ -19,7 +19,8 @@ export const Home: React.FC = () => {
         setFocusArea,
         customWorkoutActive,
         clearCustomWorkout,
-        strategyInsight // Get strategy
+        strategyInsight, // Get strategy
+        allExercises // Add this
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
@@ -203,6 +204,15 @@ export const Home: React.FC = () => {
                     </div>
                 )
             }
+
+            {/* DEBUG PANEL */}
+            <div className="mt-8 p-4 bg-black/50 rounded text-[10px] font-mono text-green-400 border border-green-900 overflow-hidden">
+                <p>DEBUG INFO:</p>
+                <p>Total Loading: {allExercises.length}</p>
+                <p>With Images: {allExercises.filter((e: any) => e.gifUrl).length}</p>
+                <p>Sample (first): {JSON.stringify(allExercises[0] || {}, null, 2)}</p>
+                <p>Sample with Img: {JSON.stringify(allExercises.find((e: any) => e.gifUrl) || 'None found', null, 2)}</p>
+            </div>
         </div >
     );
 };
