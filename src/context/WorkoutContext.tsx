@@ -350,12 +350,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
                     const newFavorites = settingsData?.favorites || prev.favorites || [];
                     const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
-                    const newCustom = settingsData?.custom_exercises || prev.customExercises || [];
                     const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey; // Removed localStorage fallback
 
                     // Restore full state
                     const newSplit = settingsData?.current_split || prev.currentSplit;
-                    const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.dailyWorkout) : prev.dailyWorkout;
+                    const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
                     const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
                     const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
                     // User Request: Always default to 'Standard Split' (Default) on initial load, ignoring saved focus
@@ -653,6 +652,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             muscleGroup: existing?.muscleGroup || focusToUse,
                             equipment: existing?.equipment || 'Bodyweight',
                             gifUrl: existing?.gifUrl,
+                            type: existing?.type || 'Isolation',
                             // Store AI Sets/Reps/Notes in a temporary way? 
                             // We don't have these fields in Exercise interface yet.
                             // Let's hack it into 'description' or just trust the user knows.
@@ -789,7 +789,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ...prev,
             dailyWorkout: selectedExercises,
             lastWorkoutDate: new Date().toDateString(),
-            currentSplit: splitToUse
+            currentSplit: splitToUse as any
         }));
     };
 
