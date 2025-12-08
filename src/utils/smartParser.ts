@@ -187,7 +187,6 @@ export const SmartParser = {
         const hasMachine = KEYWORDS.machine.some(k => lowerProfile.includes(k));
         const hasBands = KEYWORDS.bands.some(k => lowerProfile.includes(k));
         const hasKettlebell = KEYWORDS.kettlebell.some(k => lowerProfile.includes(k));
-        const hasBodyweight = true; // Always true
 
         if (lowerProfile.includes('full gym') || lowerProfile.includes('everything')) {
             return allExercises.map(e => e.name);
@@ -195,8 +194,11 @@ export const SmartParser = {
 
         // Filter based on detected equipment flags
         return allExercises.filter(ex => {
-            const eq = ex.equipment ? ex.equipment.toLowerCase() : '';
-            if (!eq || eq === 'bodyweight') return true;
+            const eq = Array.isArray(ex.equipment)
+                ? ex.equipment.map(e => e.toLowerCase()).join(' ')
+                : (ex.equipment ? ex.equipment.toLowerCase() : '');
+
+            if (!eq || eq.includes('bodyweight')) return true;
             if (hasDumbbells && eq.includes('dumbbell')) return true;
             if (hasBarbell && eq.includes('barbell')) return true;
             if (hasCables && (eq.includes('cable') || eq.includes('machine'))) return true;

@@ -355,7 +355,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                     // Restore full state
                     const newSplit = settingsData?.current_split || prev.currentSplit;
-                    const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
+                    const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.dailyWorkout) : prev.dailyWorkout;
                     const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
                     const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
                     // User Request: Always default to 'Standard Split' (Default) on initial load, ignoring saved focus
@@ -672,7 +672,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...prev,
                         dailyWorkout: mappedWorkout,
                         lastWorkoutDate: new Date().toDateString(),
-                        currentSplit: splitToUse as any // Ensure split is updated if passed
+                        currentSplit: splitToUse as any
                     }));
                     return; // EXIT EARLY
                 }
@@ -1097,7 +1097,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const exObj: Exercise = {
                 id: `custom-${Date.now()}`,
                 ...newEx,
-                gifUrl: '' // No GIF for custom yet
+                gifUrl: '', // No GIF for custom yet
+                type: 'Isolation' // Default type required by Exercise interface
             };
 
             setState(prev => {

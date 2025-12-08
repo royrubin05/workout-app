@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Trash2, Plus, Star, Dumbbell, CalendarDays, History, Brain, RefreshCw } from 'lucide-react';
+import { Trash2, Plus, Star, Dumbbell, CalendarDays, History } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 import { SmartParser } from '../utils/smartParser';
@@ -8,8 +8,6 @@ import { migrateExercises } from '../services/migrate';
 
 export const Settings: React.FC = () => {
     const {
-        equipment,
-        updateEquipment,
         excludedExercises,
         restoreExercise,
         favorites,
@@ -336,7 +334,7 @@ export const Settings: React.FC = () => {
 
                                             // Real-time AI classification
                                             if (val.length > 3) {
-                                                const guess = await SmartParser.classifyExercise(val); // Async
+                                                const guess = await SmartParser.classifyExercise(apiKey, val); // Async
                                                 setNewExercise(prev => {
                                                     // Prevent overwriting if user kept typing and we got a stale result?
                                                     // For simple use case, just updating is okay.

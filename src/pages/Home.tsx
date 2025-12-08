@@ -1,9 +1,7 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { SmartParser } from '../utils/smartParser';
-import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Brain, Zap } from 'lucide-react';
+import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Zap } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
-import { triggerConfetti } from '../utils/confetti';
 
 import { CustomizeWorkoutModal } from '../components/CustomizeWorkoutModal';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
@@ -19,7 +17,6 @@ export const Home: React.FC = () => {
         toggleExerciseCompletion,
         focusArea,
         setFocusArea,
-        history: contextHistory,
         customWorkoutActive,
         customTargets,
         clearCustomWorkout
