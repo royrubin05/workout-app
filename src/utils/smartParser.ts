@@ -219,42 +219,10 @@ export const SmartParser = {
         equipmentProfile: string,
         availableExercises: string[],
         favorites: string[] = [] // NEW: Favorites List
-    ): Promise<{ name: string, sets: string, reps: string, note: string }[]> => {
+    ): Promise<{ strategy: string, exercises: { name: string, sets: string, reps: string, note: string }[] }> => {
 
         const prompt = `
         Create a perfect ${split} workout focusing on ${focusArea}.
-        User Equipment: ${equipmentProfile || "Bodyweight"}
-        
-        Available Whitelist (Use primarily these): 
-        ${availableExercises.slice(0, 100).join(', ')}...
-        
-        ⭐ FAVORITES (PRIORITIZE THESE IF POSSIBLE): 
-        ${favorites.join(', ')}
-        
-        Rules:
-        1. Include 6-8 exercises.
-        2. Sequence them logically: Warmup -> Heavy Compound -> Hypertrophy -> Isolation/Finisher.
-        3. If a Favorite fits the split/muscle, USE IT and place it prominently.
-        4. Return JSON ARRAY ONLY.
-        
-        Output format: [{"name": "Bench Press", "sets": "4", "reps": "5-8", "note": "Explode up"}]
-        `;
-
-        const response = await callOpenAI(apiKey, "You are a world-class program designer. Return ONLY JSON.", prompt);
-
-        if (response) {
-            try {
-                const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(jsonStr);
-                if (Array.isArray(parsed)) return parsed;
-            } catch (e) {
-                console.error("AI Workout Parse Error", e);
-            }
-        }
-
-        return [];
-    },
-
     /**
      * Creates a NEW Exercise object from a natural language prompt.
      * Guaranteed to return a valid object for the DB.
@@ -264,38 +232,38 @@ export const SmartParser = {
         User wants to create a new exercise: "${prompt}"
         
         Return a JSON object with:
-        - name: A clean, standard name (e.g. "Cable Glute Kickback")
-        - muscleGroup: Main target (Chest, Back, Legs, Shoulders, Arms, Core)
-        - category: Push, Pull, Legs, Core, Full Body
-        - equipment: Dumbbell, Barbell, Machine, Cable, Band, Bodyweight, Kettlebell
-        - description: A 1-sentence form cue.
+        - name: A clean, standard name(e.g. "Cable Glute Kickback")
+            - muscleGroup: Main target(Chest, Back, Legs, Shoulders, Arms, Core)
+                - category: Push, Pull, Legs, Core, Full Body
+                    - equipment: Dumbbell, Barbell, Machine, Cable, Band, Bodyweight, Kettlebell
+                        - description: A 1 - sentence form cue.
         `;
 
         const response = await callOpenAI(apiKey, "You are a fitness data expert.", query);
 
         if (response) {
             try {
-                const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(jsonStr);
-                return {
-                    name: parsed.name || prompt,
-                    muscleGroup: parsed.muscleGroup || 'Full Body',
-                    category: parsed.category || 'Full Body',
-                    equipment: parsed.equipment || 'Bodyweight',
-                    description: parsed.description || 'Custom Exercise'
-                };
-            } catch (e) {
-                console.error("AI Create Error", e);
-            }
+                const jsonStr = response.replace(/```json / g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(jsonStr);
+    return {
+        name: parsed.name || prompt,
+        muscleGroup: parsed.muscleGroup || 'Full Body',
+        category: parsed.category || 'Full Body',
+        equipment: parsed.equipment || 'Bodyweight',
+        description: parsed.description || 'Custom Exercise'
+    };
+} catch (e) {
+    console.error("AI Create Error", e);
+}
         }
 
-        // Fallback
-        return {
-            name: prompt,
-            muscleGroup: 'Full Body',
-            category: 'Full Body',
-            equipment: 'Bodyweight',
-            description: 'Custom Created Exercise'
-        };
+// Fallback
+return {
+    name: prompt,
+    muscleGroup: 'Full Body',
+    category: 'Full Body',
+    equipment: 'Bodyweight',
+    description: 'Custom Created Exercise'
+};
     }
 };

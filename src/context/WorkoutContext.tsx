@@ -37,8 +37,10 @@ interface WorkoutState {
     favorites: string[];
     customExercises: Exercise[];
     userEquipmentProfile: string;
+    userEquipmentProfile: string;
     availableExerciseNames: string[]; // Whitelist of valid exercises based on profile
     openaiApiKey: string;
+    strategyInsight: string; // NEW: Real-time AI Strategy
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -88,7 +90,10 @@ const initialState: WorkoutState = {
     customExercises: [],
     userEquipmentProfile: '',
     availableExerciseNames: [],
-    openaiApiKey: localStorage.getItem('openai_api_key') || ''
+    userEquipmentProfile: '',
+    availableExerciseNames: [],
+    openaiApiKey: localStorage.getItem('openai_api_key') || '',
+    strategyInsight: ''
 };
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -627,7 +632,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     }
                 }
 
-                const aiPlan = await SmartParser.generateAIWorkout(
+                const aiResult = await SmartParser.generateAIWorkout(
                     state.openaiApiKey,
                     splitToUse,
                     focusToUse,
@@ -636,13 +641,28 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     state.favorites // PASS FAVORITES
                 );
 
+                const aiPlan = aiResult.exercises;
+                const strategy = aiResult.strategy;
+
                 if (aiPlan.length > 0) {
                     // Map AI plan to Exercise objects
                     const mappedWorkout: WorkoutExercise[] = aiPlan.map((step, idx) => {
                         // Find matching DB exercise (Standard OR Custom)
+                        // IMPROVED MATCHING:
+                        // 1. Exact match (case insensitive)
+                        // 2. DB name includes AI name
+                        // 3. AI name includes DB name (if DB name > 3 chars)
                         const allPool = [...allExercises, ...state.customExercises];
-                        const existing = allPool.find(ex => ex.name.toLowerCase() === step.name.toLowerCase())
-                            || allPool.find(ex => ex.name.toLowerCase().includes(step.name.toLowerCase()));
+
+                        let existing = allPool.find(ex => ex.name.toLowerCase() === step.name.toLowerCase());
+
+                        if (!existing) {
+                            existing = allPool.find(ex => ex.name.toLowerCase().includes(step.name.toLowerCase()));
+                        }
+
+                        if (!existing && step.name.length > 3) {
+                            existing = allPool.find(ex => step.name.toLowerCase().includes(ex.name.toLowerCase()));
+                        }
 
                         // Construct Exercise Object
                         return {
@@ -653,16 +673,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             equipment: existing?.equipment || 'Bodyweight',
                             gifUrl: existing?.gifUrl,
                             type: existing?.type || 'Isolation',
-                            // Store AI Sets/Reps/Notes in a temporary way? 
-                            // We don't have these fields in Exercise interface yet.
-                            // Let's hack it into 'description' or just trust the user knows.
-                            // Ideally we add 'sets', 'reps', 'note' to WorkoutExercise interface?
-                            // For now, let's just allow the standard card to show, maybe update name?
-                            // "Bench Press (4x5-8)"? No that's ugly.
-                            // Let's just return the exercise. The user asked for "Strategy".
-                            // If we want to show Sets/Reps, we need UI changes.
-                            // For now, just getting the RIGHT exercises is the win.
-                            // We will match the existing object.
+                            // Store AI Sets/Reps/Notes in the exercise object for display if needed
+                            sets: step.sets,
+                            reps: step.reps,
+                            notes: step.note,
                             completed: false
                         };
                     });
@@ -672,7 +686,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...prev,
                         dailyWorkout: mappedWorkout,
                         lastWorkoutDate: new Date().toDateString(),
-                        currentSplit: splitToUse as any
+                        currentSplit: splitToUse as any,
+                        strategyInsight: strategy // Save strategy
                     }));
                     return; // EXIT EARLY
                 }
