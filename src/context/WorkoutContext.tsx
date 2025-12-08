@@ -427,7 +427,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (!user) return;
 
             // Upsert Settings
-            await supabase
+            // Upsert Settings
+            const { error: syncError } = await supabase
                 .from('user_settings')
                 .upsert({
                     id: user.id,
@@ -446,7 +447,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     updated_at: new Date().toISOString()
                 });
 
-            setState(prev => ({ ...prev, lastSyncTime: new Date().toLocaleTimeString() }));
+            if (syncError) {
+                console.error('❌ Sync Failed:', syncError.message, syncError.details);
+            } else {
+                console.log('✅ Sync Success');
+                setState(prev => ({ ...prev, lastSyncTime: new Date().toLocaleTimeString() }));
+            }
         };
 
         // Debounce or just run?
