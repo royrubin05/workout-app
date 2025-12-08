@@ -1,11 +1,12 @@
 export interface Exercise {
     id: string;
     name: string;
-    equipment: string;
+    equipment: string | string[]; // Allow both for backward compatibility
     category: 'Push' | 'Pull' | 'Legs' | 'Core' | 'Full Body' | 'Cardio';
     muscleGroup: string;
     type: 'Compound' | 'Isolation';
-    gifUrl?: string;
+    gifUrl?: string; // Optional
+    muscles?: string; // Legacy support
 }
 
 // Base exercises to generate variations from

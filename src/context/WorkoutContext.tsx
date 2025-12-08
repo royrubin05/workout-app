@@ -85,7 +85,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [isLoaded, setIsLoaded] = useState(false);
     const [allExercises, setAllExercises] = useState<Exercise[]>([]);
     const [loadingProgress, setLoadingProgress] = useState(0);
-    const [loadingText, setLoadingText] = useState('Warming up...');
 
     // Loading Animation Effect
     // Load Exercises from DB on Mount
@@ -104,22 +103,42 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const dbExercises: Exercise[] = data.map(d => ({
                         name: d.name,
                         category: d.category,
-                        muscles: d.muscle_group, // Map DB 'muscle_group' -> App 'muscles'
+                        muscles: d.muscle_group, // Legacy
+                        muscleGroup: d.muscle_group, // Map DB 'muscle_group' -> App 'muscleGroup'
                         equipment: d.equipment,
-                        description: d.description,
-                        id: d.id
+                        type: 'Compound', // Default for now, or map if DB has it
+                        // description: d.description, // Not in Exercise interface yet?
+                        id: d.id || `db-${Math.random()}`
                     }));
                     setAllExercises(dbExercises);
                     setState(prev => ({ ...prev, connectionStatus: 'connected' }));
                 } else {
                     // 2. Fallback if DB empty (or first run before migration)
                     console.log('DB empty, using static exercises');
-                    setAllExercises(BASE_MOVEMENTS);
-                    setState(prev => ({ ...prev, connectionStatus: 'connected' })); // Connected but empty is fine, we have data.
+                    const staticExercises: Exercise[] = BASE_MOVEMENTS.map((ex: any, i) => ({
+                        id: `static-${i}`,
+                        name: ex.name,
+                        category: ex.category,
+                        muscleGroup: ex.muscles, // Map
+                        equipment: ex.equipment,
+                        type: 'Compound', // Default
+                        muscles: ex.muscles
+                    }));
+                    setAllExercises(staticExercises);
+                    setState(prev => ({ ...prev, connectionStatus: 'connected' }));
                 }
             } catch (err) {
                 console.warn('Offline or DB Error, using static data:', err);
-                setAllExercises(BASE_MOVEMENTS);
+                const staticExercises: Exercise[] = BASE_MOVEMENTS.map((ex: any, i) => ({
+                    id: `static-${i}`,
+                    name: ex.name,
+                    category: ex.category,
+                    muscleGroup: ex.muscles,
+                    equipment: ex.equipment,
+                    type: 'Compound',
+                    muscles: ex.muscles
+                }));
+                setAllExercises(staticExercises);
                 setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
             } finally {
                 setIsLoaded(true);
@@ -516,16 +535,20 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             // Smart Equipment Check
-            const requiredEq = ex.equipment?.toLowerCase().trim();
-            if (!requiredEq) return false;
+            // Smart Equipment Check (Handle string or string[])
+            const requiredList: string[] = Array.isArray(ex.equipment)
+                ? ex.equipment.map(e => e.toLowerCase().trim())
+                : (ex.equipment ? [ex.equipment.toLowerCase().trim()] : []);
 
-            // Check if ANY of the user's mapped equipment matches the requirement
-            // The API usually lists a single equipment type per exercise (e.g. "dumbbell")
-            return userEq.some(u => {
-                // Exact match or substring match (but be careful with short strings)
-                if (requiredEq.length < 3) return u === requiredEq;
-                return requiredEq.includes(u) || u.includes(requiredEq);
-            });
+            if (requiredList.length === 0) return false;
+
+            // Check if ANY of the user's mapped equipment matches ANY required option (OR logic for variations)
+            return userEq.some(u =>
+                requiredList.some(req => {
+                    if (req.length < 3) return u === req;
+                    return req.includes(u) || u.includes(req);
+                })
+            );
         });
 
         console.log(`getAvailableExercises('${eqString}') -> userEq:`, userEq, 'Count:', uniqueExercises.length, '->', filtered.length);
@@ -841,12 +864,18 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const userEq = normalizeUserEquipment(eqString);
 
             availablePool = availablePool.filter(ex => {
-                const requiredEq = ex.equipment?.toLowerCase().trim();
-                if (!requiredEq) return false;
-                return userEq.some(u => {
-                    if (requiredEq.length < 3) return u === requiredEq;
-                    return requiredEq.includes(u) || u.includes(requiredEq);
-                });
+                const requiredList: string[] = Array.isArray(ex.equipment)
+                    ? ex.equipment.map(e => e.toLowerCase().trim())
+                    : (ex.equipment ? [ex.equipment.toLowerCase().trim()] : []);
+
+                if (requiredList.length === 0) return false;
+
+                return userEq.some(u =>
+                    requiredList.some(req => {
+                        if (req.length < 3) return u === req;
+                        return req.includes(u) || u.includes(req);
+                    })
+                );
             });
         }
 
