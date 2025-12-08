@@ -75,12 +75,12 @@ const initialState: WorkoutState = {
     lastWorkoutDate: null,
     history: [],
     completedToday: false,
-    currentSplit: 'Push',
+    currentSplit: 'Push', // Default type correct
     focusArea: 'Default',
     excludedExercises: [],
     connectionStatus: 'checking',
-    connectionError: null,
-    lastSyncTime: null,
+    connectionError: undefined,
+    lastSyncTime: undefined,
     customWorkoutActive: false,
     customTargets: [],
     customEquipment: [],
@@ -350,7 +350,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
                     const newFavorites = settingsData?.favorites || prev.favorites || [];
                     const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
-                    const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
                     const newCustom = settingsData?.custom_exercises || prev.customExercises || [];
                     const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey; // Removed localStorage fallback
 
@@ -438,7 +437,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     daily_workout: state.dailyWorkout,
                     last_workout_date: state.lastWorkoutDate,
                     completed_today: state.completedToday,
-                    focus_area: state.focusArea,
                     focus_area: state.focusArea,
                     openai_api_key: state.openaiApiKey,
                     updated_at: new Date().toISOString()
@@ -674,7 +672,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...prev,
                         dailyWorkout: mappedWorkout,
                         lastWorkoutDate: new Date().toDateString(),
-                        currentSplit: splitToUse // Ensure split is updated if passed
+                        currentSplit: splitToUse as any // Ensure split is updated if passed
                     }));
                     return; // EXIT EARLY
                 }
