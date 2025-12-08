@@ -1097,7 +1097,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const exObj: Exercise = {
                 id: `custom-${Date.now()}`,
                 ...newEx,
-                gifUrl: '', // No GIF for custom yet
+                category: newEx.category as any, // Cast string to strict Union
+                gifUrl: '',
                 type: 'Isolation' // Default type required by Exercise interface
             };
 
