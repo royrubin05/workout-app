@@ -120,23 +120,8 @@ export const SmartParser = {
      * Parses a free-form user prompt to identify available equipment.
      */
     parseEquipmentPrompt: async (text: string): Promise<string[]> => {
-        // Try AI First
-        const aiResponse = await callOpenAI(
-            `You are a gym equipment scanner. Read the user's description and return a JSON array of detected equipment from this specific list ONLY: ["Barbell", "Dumbbells", "Kettlebell", "Machine", "Cables", "Bands", "Bodyweight"]. If they imply having a full gym, include relevant items. If empty/none, return ["Bodyweight"]. Example output: ["Dumbbells", "Bands"]`,
-            `User Setup: ${text}`
-        );
-
-        if (aiResponse) {
-            try {
-                const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(jsonStr);
-                if (Array.isArray(parsed)) return parsed;
-            } catch (e) {
-                console.warn('AI Equipment Parse Error, falling back to regex', e);
-            }
-        }
-
-        // --- FALLBACK REGEX LOGIC ---
+        // ... existing logic ...
+        // Keeping this as a potential helper or fallback
         const lower = text.toLowerCase();
         const detected: string[] = [];
 
@@ -152,5 +137,147 @@ export const SmartParser = {
         }
 
         return Array.from(new Set(detected));
-    }
-};
+    },
+
+    /**
+     * Filters the ENTIRE exercise list based on the user's equipment profile.
+     * Returns a list of exercise names that are performable.
+     */
+    filterExercisesByProfile: async (profile: string, allExercises: { name: string, equipment: string | string[] }[]): Promise<string[]> => {
+        // 1. Try AI First
+        const exerciseList = allExercises.map(e => e.name).join(', ');
+        const prompt = `
+        User Equipment Profile: "${profile}"
+        
+        Task: Identify which of the following exercises can be performed with the user's equipment.
+        - If the user says "full gym", include everything.
+        - If "bodyweight only", includes only bodyweight moves.
+        - Be generous: e.g. "Dumbbell Press" can't be done if user only has Bands, but "Pushups" can be done if user has "only a mat".
+        
+        Exercise List: ${exerciseList}
+        
+        Return JSON Array of strings containing ONLY the names of the performable exercises. 
+        Example: ["Pushups", "Squats"]
+        `;
+
+        const aiResponse = await callOpenAI(
+            `You are a strict fitness equipment auditor. Return JSON array of valid exercise names.`,
+            prompt
+        );
+
+        if (aiResponse) {
+            try {
+                const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(jsonStr);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                console.warn('AI Batch Filter Error, falling back to regex', e);
+            }
+        }
+
+        // 2. Fallback Regex Logic (Offline)
+        console.log('Using Fallback Filter Logic');
+        const lowerProfile = profile.toLowerCase();
+
+        // Simple heuristic: what categories does the user have?
+        const hasDumbbells = KEYWORDS.dumbbells.some(k => lowerProfile.includes(k));
+        const hasBarbell = KEYWORDS.barbell.some(k => lowerProfile.includes(k));
+        const hasCables = KEYWORDS.cables.some(k => lowerProfile.includes(k));
+        const hasMachine = KEYWORDS.machine.some(k => lowerProfile.includes(k));
+        const hasBands = KEYWORDS.bands.some(k => lowerProfile.includes(k));
+        const hasKettlebell = KEYWORDS.kettlebell.some(k => lowerProfile.includes(k));
+        const hasBodyweight = true; // Always true
+
+        if (lowerProfile.includes('full gym') || lowerProfile.includes('everything')) {
+            return allExercises.map(e => e.name);
+        }
+
+        /**
+         * Generates a full workout routine using AI.
+         */
+        generateAIWorkout: async (
+            split: string,
+            focusArea: string,
+            equipmentProfile: string,
+            availableExercises: string[],
+            favorites: string[] = [] // NEW: Favorites List
+        ): Promise<{ name: string, sets: string, reps: string, note: string }[]> => {
+
+            const prompt = `
+        Create a perfect ${split} workout focusing on ${focusArea}.
+        User Equipment: ${equipmentProfile || "Bodyweight"}
+        
+        Available Whitelist (Use primarily these): 
+        ${availableExercises.slice(0, 100).join(', ')}...
+        
+        ⭐ FAVORITES (PRIORITIZE THESE IF POSSIBLE): 
+        ${favorites.join(', ')}
+        
+        Rules:
+        1. Include 6-8 exercises.
+        2. Sequence them logically: Warmup -> Heavy Compound -> Hypertrophy -> Isolation/Finisher.
+        3. If a Favorite fits the split/muscle, USE IT and place it prominently.
+        4. Return JSON ARRAY ONLY.
+        
+        Output format: [{"name": "Bench Press", "sets": "4", "reps": "5-8", "note": "Explode up"}]
+        `;
+
+            const response = await callOpenAI("You are a world-class program designer. Return ONLY JSON.", prompt);
+
+            if (response) {
+                try {
+                    const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const parsed = JSON.parse(jsonStr);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (e) {
+                    console.error("AI Workout Parse Error", e);
+                }
+            }
+
+            return [];
+        },
+
+            /**
+             * Creates a NEW Exercise object from a natural language prompt.
+             * Guaranteed to return a valid object for the DB.
+             */
+            createExerciseFromPrompt: async (prompt: string): Promise<{ name: string, muscleGroup: string, category: string, equipment: string, description: string }> => {
+                const query = `
+        User wants to create a new exercise: "${prompt}"
+        
+        Return a JSON object with:
+        - name: A clean, standard name (e.g. "Cable Glute Kickback")
+        - muscleGroup: Main target (Chest, Back, Legs, Shoulders, Arms, Core)
+        - category: Push, Pull, Legs, Core, Full Body
+        - equipment: Dumbbell, Barbell, Machine, Cable, Band, Bodyweight, Kettlebell
+        - description: A 1-sentence form cue.
+        `;
+
+                const response = await callOpenAI("You are a fitness data expert.", query);
+
+                if (response) {
+                    try {
+                        const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                        const parsed = JSON.parse(jsonStr);
+                        return {
+                            name: parsed.name || prompt,
+                            muscleGroup: parsed.muscleGroup || 'Full Body',
+                            category: parsed.category || 'Full Body',
+                            equipment: parsed.equipment || 'Bodyweight',
+                            description: parsed.description || 'Custom Exercise'
+                        };
+                    } catch (e) {
+                        console.error("AI Create Error", e);
+                    }
+                }
+
+                // Fallback
+                return {
+                    name: prompt,
+                    muscleGroup: 'Full Body',
+                    category: 'Full Body',
+                    equipment: 'Bodyweight',
+                    description: 'Custom Created Exercise'
+                };
+            }
+    };

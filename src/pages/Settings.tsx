@@ -1,6 +1,7 @@
+```javascript
 import React, { useState } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Trash2, Plus, Star, Dumbbell, CalendarDays, History } from 'lucide-react';
+import { Trash2, Plus, Star, Dumbbell, CalendarDays, History, Brain, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 import { SmartParser } from '../utils/smartParser';
@@ -17,7 +18,8 @@ export const Settings: React.FC = () => {
         customExercises,
         addCustomExercise,
         deleteCustomExercise,
-        connectionStatus
+        connectionStatus,
+        updateUserEquipmentProfile
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
@@ -25,6 +27,17 @@ export const Settings: React.FC = () => {
     const [selectedFavorite, setSelectedFavorite] = useState<string | null>(null);
     const [apiKey, setApiKey] = useState(localStorage.getItem('openai_api_key') || '');
     const [showKeyInput, setShowKeyInput] = useState(false);
+
+    // UI State for Profile Init
+    const [localProfile, setLocalProfile] = useState('');
+    const [isScanning, setIsScanning] = useState(false);
+
+    // Sync local state with context on load
+    React.useEffect(() => {
+        // We pull this from context if available
+        const saved = localStorage.getItem('user_equipment_profile');
+        if (saved) setLocalProfile(saved);
+    }, []);
 
     // Save API Key
     const handleSaveKey = (key: string) => {
@@ -44,7 +57,7 @@ export const Settings: React.FC = () => {
         if (!newExercise.name) return;
 
         const ex: any = {
-            id: `custom-${Date.now()}`,
+            id: `custom - ${ Date.now() } `,
             name: newExercise.name,
             muscleGroup: newExercise.muscleGroup,
             equipment: newExercise.equipment,
@@ -71,14 +84,15 @@ export const Settings: React.FC = () => {
                 <div className="flex gap-2">
                     <button
                         onClick={() => setShowKeyInput(!showKeyInput)}
-                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
-                            }`}
+                        className={`text - xs px - 3 py - 1.5 rounded - full border transition - colors ${
+    apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+} `}
                     >
                         {apiKey ? 'AI Active' : 'Enable AI'}
                     </button>
                     {/* Sync Status Badge */}
                     <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                        <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <div className={`w - 2 h - 2 rounded - full ${ connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500' } `} />
                         <div className="text-xs text-slate-400 font-medium">
                             {connectionStatus === 'connected' ? 'Synced' : 'Offline'}
                         </div>
@@ -102,7 +116,7 @@ export const Settings: React.FC = () => {
                         />
                     </div>
                     <p className="text-[10px] text-slate-500 mt-2">
-                        Your key is stored locally on this device. We use `gpt-4o-mini` for smart features.
+                        Your key is stored locally on this device. We use `gpt - 4o - mini` for smart features.
                         <br />Without a key, we use a basic offline simulation.
                     </p>
                 </div>
@@ -133,10 +147,11 @@ export const Settings: React.FC = () => {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id
-                            ? 'bg-slate-800 text-white shadow-sm'
-                            : 'text-slate-500 hover:text-slate-300'
-                            }`}
+                        className={`flex - 1 flex items - center justify - center gap - 2 py - 2.5 rounded - lg text - sm font - bold transition - all ${
+    activeTab === tab.id
+        ? 'bg-slate-800 text-white shadow-sm'
+        : 'text-slate-500 hover:text-slate-300'
+} `}
                     >
                         <tab.icon size={16} className={activeTab === tab.id ? 'text-blue-400' : ''} />
                         {tab.label}
@@ -146,65 +161,62 @@ export const Settings: React.FC = () => {
 
             <div className="glass-card p-6 min-h-[400px]">
 
-                {/* EQUIPMENT TAB */}
+                {/* EQUIPMENT TAB - AI PROFILE MODE */}
                 {activeTab === 'equipment' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
-                        {/* Smart AI Parser Input */}
-                        <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-indigo-500/30 p-4 rounded-xl">
-                            <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2 block">
-                                ✨ AI Equipment Scanner
-                            </label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    placeholder="e.g. 'I have a home gym with dumbbells and a bench...'"
-                                    className="flex-1 bg-slate-900/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-indigo-200/30 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    onKeyDown={async (e) => {
-                                        if (e.key === 'Enter') {
-                                            const text = e.currentTarget.value;
-                                            const detected = await SmartParser.parseEquipmentPrompt(text); // Async
-                                            if (detected.length > 0) {
-                                                // For now, we only support single Main Equipment in context
-                                                const priority = ['Barbell', 'Dumbbells', 'Machine', 'Cables', 'Kettlebell'];
-                                                const best = priority.find(p => detected.includes(p)) || detected[0];
-                                                updateEquipment(best);
-                                                e.currentTarget.value = ''; // Clear
-                                                alert(`AI Detected: ${detected.join(', ')}. Setting main to: ${best}`);
-                                            }
-                                        }
-                                    }}
-                                />
+                        <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-indigo-500/30 p-6 rounded-xl">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                        ✨ Equipment Profile
+                                    </h2>
+                                    <p className="text-xs text-indigo-300/80 mt-1">
+                                        Describe your available equipment naturally. The AI will filter exercises to match exactly what you have.
+                                    </p>
+                                </div>
                             </div>
-                            <p className="text-[10px] text-indigo-300/60 mt-2">
-                                Type your setup and hit Enter. We'll set your main equipment automatically.
-                            </p>
-                        </div>
 
-                        <div>
-                            <h2 className="text-xl font-bold text-white mb-4">Main Equipment</h2>
-                            <div className="grid grid-cols-2 gap-3">
-                                {EQUIPMENT_OPTIONS.map(eq => (
-                                    <button
-                                        key={eq}
-                                        onClick={() => updateEquipment(eq)}
-                                        className={`p-3 rounded-xl border text-left transition-all ${equipment === eq
-                                            ? 'bg-blue-500/20 border-blue-500 text-blue-400 font-bold'
-                                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
-                                            }`}
-                                    >
-                                        {eq}
-                                    </button>
-                                ))}
+                            <textarea
+                                value={localProfile}
+                                onChange={(e) => setLocalProfile(e.target.value)}
+                                placeholder="I have a home gym with dumbbells, a bench, and a pull-up bar..."
+                                className="w-full h-32 bg-slate-900/50 border border-indigo-500/30 rounded-lg p-4 text-sm text-white placeholder-indigo-200/30 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                            />
+
+                            <div className="flex justify-end mt-4">
+                                <button
+                                    onClick={async () => {
+                                        setIsScanning(true);
+                                        await updateUserEquipmentProfile(localProfile);
+                                        setIsScanning(false);
+                                        alert('Profile Saved! We have filtered your exercises.');
+                                    }}
+                                    disabled={isScanning || !apiKey}
+                                    className={`px - 6 py - 2.5 rounded - lg text - sm font - bold flex items - center gap - 2 transition - all ${
+    !apiKey ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :
+        isScanning ? 'bg-indigo-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'
+} `}
+                                >
+                                    {isScanning ? (
+                                        <>Scanning...</>
+                                    ) : (
+                                        <>
+                                            {!apiKey ? 'Enable AI First' : 'Save & Scan Exercises'}
+                                        </>
+                                    )}
+                                </button>
                             </div>
-                            <p className="text-xs text-slate-500 mt-4 leading-relaxed">
-                                Select your primary available equipment. For more complex setups, use the "Customize" button on the workout page.
-                            </p>
+                            {!apiKey && (
+                                <p className="text-[10px] text-red-400 mt-2 text-right">
+                                    * AI features require an API Key (Top Right)
+                                </p>
+                            )}
                         </div>
 
                         {excludedExercises.length > 0 && (
                             <div className="pt-6 border-t border-slate-700/50">
-                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Excluded Exercises</h3>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Manually Excluded</h3>
                                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                                     {excludedExercises.map(ex => (
                                         <div key={ex} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">

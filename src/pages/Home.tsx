@@ -1,6 +1,7 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Brain } from 'lucide-react';
+import { SmartParser } from '../utils/smartParser';
+import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Brain, Zap } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { triggerConfetti } from '../utils/confetti';
 
@@ -18,6 +19,7 @@ export const Home: React.FC = () => {
         toggleExerciseCompletion,
         focusArea,
         setFocusArea,
+        history: contextHistory,
         customWorkoutActive,
         customTargets,
         clearCustomWorkout
@@ -197,23 +199,6 @@ export const Home: React.FC = () => {
                 )}
             </AnimatePresence>
 
-            <div className="flex flex-col gap-4 mb-6">
-                <div className="flex justify-between items-end">
-                    <div>
-                        <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
-                            Today's Focus: <span className="text-white font-bold">
-                                {customWorkoutActive ? 'Custom Mix' : currentSplit}
-                            </span>
-                        </h2>
-                        <h3 className="text-2xl font-bold text-white">
-                            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                        </h3>
-                    </div>
-                    <div className="flex gap-2">
-                        {/* Customize Button */}
-                        <button
-                            onClick={() => setIsCustomizeOpen(true)}
-                            className={`p-2 transition-colors rounded-lg border ${customWorkoutActive ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
                             title="Customize Workout"
                         >
                             <Brain size={20} />
@@ -240,17 +225,51 @@ export const Home: React.FC = () => {
                         <button
                             onClick={refreshWorkout}
                             className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
-                            title="Regenerate Workout"
-                        >
-                            <RefreshCw size={20} />
-                        </button>
-                    </div>
+            {/* Header and Controls */}
+            <div className="flex flex-col gap-4 mb-6">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-3xl font-bold text-white">Your Workout</h1>
+                    <button
+                        onClick={() => setIsCustomizeOpen(true)}
+                        className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
+                        title="Customize Workout"
+                    >
+                        <Brain size={20} />
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <select
+                        value={customWorkoutActive ? 'Custom' : focusArea}
+                        onChange={(e) => {
+                            if (e.target.value === 'Custom') return; // Don't do anything, button handles it
+                            if (customWorkoutActive) clearCustomWorkout(); // Clear custom if they pick dropdown
+                            setFocusArea(e.target.value);
+                        }}
+                        className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="Default">Standard Split</option>
+                        <option value="Chest">Focus: Chest</option>
+                        <option value="Back">Focus: Back</option>
+                        <option value="Legs">Focus: Legs</option>
+                        <option value="Shoulders">Focus: Shoulders</option>
+                        <option value="Arms">Focus: Arms</option>
+                        <option value="Bodyweight">Focus: Bodyweight / Travel</option>
+                        {customWorkoutActive && <option value="Custom">Custom Selection</option>}
+                    </select>
+                    <button
+                        onClick={refreshWorkout}
+                        className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
+                        title="Regenerate Workout"
+                    >
+                        <RefreshCw size={20} />
+                    </button>
                 </div>
 
                 {/* AI Summary Card */}
-                <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 p-4 rounded-xl border border-indigo-500/30 flex gap-3 items-start">
+                <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 p-4 rounded-xl border border-indigo-500/30 flex gap-3 items-start animate-in fade-in slide-in-from-top-4 duration-700">
                     <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-300 shrink-0">
-                        <Brain size={20} />
+                        <Zap size={20} />
                     </div>
                     <div>
                         <h4 className="text-indigo-200 font-bold text-sm mb-1">AI Strategy Insight</h4>
@@ -258,33 +277,27 @@ export const Home: React.FC = () => {
                             {getAISummary()}
                         </p>
                     </div>
-                </div>
-            </div>
+                        key={exercise.name}
+                        exercise={exercise}
+                        toggleExerciseCompletion={toggleExerciseCompletion}
+                        setPreviewImage={setPreviewImage}
+                        replaceExercise={replaceExercise}
+                        excludeExercise={excludeExercise}
+                    />
+                ))}
+            </AnimatePresence>
+        </Reorder.Group>
 
-            <div className="pb-24">
-                <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3">
-                    <AnimatePresence>
-                        {dailyWorkout.map((exercise) => (
-                            <ExerciseItem
-                                key={exercise.name}
-                                exercise={exercise}
-                                toggleExerciseCompletion={toggleExerciseCompletion}
-                                setPreviewImage={setPreviewImage}
-                                replaceExercise={replaceExercise}
-                                excludeExercise={excludeExercise}
-                            />
-                        ))}
-                    </AnimatePresence>
-                </Reorder.Group>
-
-                {dailyWorkout.length === 0 && (
-                    <div className="text-center py-10 text-slate-500">
-                        <p>No exercises found for your equipment.</p>
-                        <p className="text-sm mt-2">Update your settings to add equipment.</p>
-                    </div>
-                )}
+        {
+        dailyWorkout.length === 0 && (
+            <div className="text-center py-10 text-slate-500">
+                <p>No exercises found for your equipment.</p>
+                <p className="text-sm mt-2">Update your settings to add equipment.</p>
             </div>
-        </div>
+        )
+    }
+    </div >
+        </div >
     );
 };
 
