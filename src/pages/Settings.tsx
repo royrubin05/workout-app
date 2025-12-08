@@ -4,6 +4,7 @@ import { Trash2, Plus, Star, Dumbbell, CalendarDays, History } from 'lucide-reac
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 import { SmartParser } from '../utils/smartParser';
+import { migrateExercises } from '../services/migrate';
 
 export const Settings: React.FC = () => {
     const {
@@ -22,6 +23,15 @@ export const Settings: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
     const [showUpcomingModal, setShowUpcomingModal] = useState(false);
     const [selectedFavorite, setSelectedFavorite] = useState<string | null>(null);
+    const [apiKey, setApiKey] = useState(localStorage.getItem('openai_api_key') || '');
+    const [showKeyInput, setShowKeyInput] = useState(false);
+
+    // Save API Key
+    const handleSaveKey = (key: string) => {
+        setApiKey(key);
+        localStorage.setItem('openai_api_key', key);
+        // Also update the parser instance if needed, or parser reads from localStorage directly
+    };
 
     // Custom Exercise Form State
     const [newExercise, setNewExercise] = useState({
@@ -58,14 +68,45 @@ export const Settings: React.FC = () => {
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold text-white">Settings</h1>
 
-                {/* Sync Status Badge */}
-                <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                    <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <div className="text-xs text-slate-400 font-medium">
-                        {connectionStatus === 'connected' ? 'Synced' : 'Offline'}
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setShowKeyInput(!showKeyInput)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+                            }`}
+                    >
+                        {apiKey ? 'AI Active' : 'Enable AI'}
+                    </button>
+                    {/* Sync Status Badge */}
+                    <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+                        <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <div className="text-xs text-slate-400 font-medium">
+                            {connectionStatus === 'connected' ? 'Synced' : 'Offline'}
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* AI Key Input */}
+            {showKeyInput && (
+                <div className="bg-slate-900/80 border border-slate-700 p-4 rounded-xl animate-in fade-in slide-in-from-top-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">
+                        OpenAI API Key
+                    </label>
+                    <div className="flex gap-2">
+                        <input
+                            type="password"
+                            value={apiKey}
+                            onChange={(e) => handleSaveKey(e.target.value)}
+                            placeholder="sk-..."
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
+                        />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">
+                        Your key is stored locally on this device. We use `gpt-4o-mini` for smart features.
+                        <br />Without a key, we use a basic offline simulation.
+                    </p>
+                </div>
+            )}
 
             {/* Quick Actions Grid */}
             <div className="grid grid-cols-2 gap-4">
@@ -119,19 +160,16 @@ export const Settings: React.FC = () => {
                                     type="text"
                                     placeholder="e.g. 'I have a home gym with dumbbells and a bench...'"
                                     className="flex-1 bg-slate-900/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-indigo-200/30 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    onKeyDown={(e) => {
+                                    onKeyDown={async (e) => {
                                         if (e.key === 'Enter') {
                                             const text = e.currentTarget.value;
-                                            const detected = SmartParser.parseEquipmentPrompt(text);
+                                            const detected = await SmartParser.parseEquipmentPrompt(text); // Async
                                             if (detected.length > 0) {
                                                 // For now, we only support single Main Equipment in context
-                                                // So we pick the "best" one or the first one that isn't bodyweight?
-                                                // Heuristic: If they have Barbell, prioritize that.
                                                 const priority = ['Barbell', 'Dumbbells', 'Machine', 'Cables', 'Kettlebell'];
                                                 const best = priority.find(p => detected.includes(p)) || detected[0];
                                                 updateEquipment(best);
                                                 e.currentTarget.value = ''; // Clear
-                                                // Toast or feedback?
                                                 alert(`AI Detected: ${detected.join(', ')}. Setting main to: ${best}`);
                                             }
                                         }
@@ -278,19 +316,23 @@ export const Settings: React.FC = () => {
                                     <input
                                         type="text"
                                         value={newExercise.name}
-                                        onChange={e => {
+                                        onChange={async (e) => {
                                             const val = e.target.value;
                                             setNewExercise(prev => ({ ...prev, name: val }));
 
                                             // Real-time AI classification
                                             if (val.length > 3) {
-                                                const guess = SmartParser.classifyExercise(val);
-                                                setNewExercise(prev => ({
-                                                    ...prev,
-                                                    name: val,
-                                                    muscleGroup: guess.muscleGroup,
-                                                    equipment: prev.equipment === 'Bodyweight' ? guess.equipment : prev.equipment // Only overwrite if bodyweight default? Or always? Let's be smart.
-                                                }));
+                                                const guess = await SmartParser.classifyExercise(val); // Async
+                                                setNewExercise(prev => {
+                                                    // Prevent overwriting if user kept typing and we got a stale result?
+                                                    // For simple use case, just updating is okay.
+                                                    if (prev.name !== val) return prev; // Name changed since we asked
+                                                    return {
+                                                        ...prev,
+                                                        muscleGroup: guess.muscleGroup,
+                                                        equipment: prev.equipment === 'Bodyweight' ? guess.equipment : prev.equipment
+                                                    };
+                                                });
                                             }
                                         }}
                                         className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
@@ -360,10 +402,6 @@ export const Settings: React.FC = () => {
                     </div>
                 )}
             </div>
-
-            import {migrateExercises} from '../services/migrate';
-
-            // ... inside Settings component ...
 
             <div className="text-center text-xs text-slate-600 font-medium pb-8">
                 v1.2.0 • Data auto-synced

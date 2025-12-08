@@ -9,7 +9,7 @@ export interface Exercise {
 }
 
 // Base exercises to generate variations from
-const BASE_MOVEMENTS = [
+export const BASE_MOVEMENTS = [
     // PUSH (Chest, Shoulders, Triceps)
     { name: 'Bench Press', category: 'Push', muscles: 'Chest', equipment: ['Barbell', 'Dumbbells', 'Machine', 'Smith Machine', 'Bands'] },
     { name: 'Incline Bench Press', category: 'Push', muscles: 'Chest', equipment: ['Barbell', 'Dumbbells', 'Machine', 'Smith Machine', 'Bands'] },

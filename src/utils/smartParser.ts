@@ -1,10 +1,9 @@
 /**
  * Smart Parser Utility
- * simulates "AI" analysis using heuristic keyword matching and regex patterns.
- * This runs entirely client-side, ensuring privacy and zero latency.
+ * Hybrid: Uses OpenAI if API Key exists, otherwise falls back to Regex Simulation.
  */
 
-// Heuristic Knowledge Base
+// Heuristic Knowledge Base (Fallback)
 const KEYWORDS = {
     // Muscle Groups
     chest: ['bench', 'chest', 'fly', 'pushups', 'push-up', 'pectoral', 'dip', 'press'],
@@ -25,15 +24,69 @@ const KEYWORDS = {
     bands: ['band', 'elastic', 'resistance']
 };
 
+/**
+ * Helper to call OpenAI API
+ */
+const callOpenAI = async (systemPrompt: string, userPrompt: string): Promise<string | null> => {
+    const apiKey = localStorage.getItem('openai_api_key');
+    if (!apiKey) return null;
+
+    try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.3
+            })
+        });
+
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content || null;
+    } catch (e) {
+        console.error('OpenAI Call Failed:', e);
+        return null; // Fallback to regex
+    }
+};
+
 export const SmartParser = {
     /**
      * Guesses the properties of an exercise based on its name.
      */
-    classifyExercise: (name: string) => {
+    classifyExercise: async (name: string) => {
+        // Try AI First
+        const aiResponse = await callOpenAI(
+            `You are a fitness expert. Classify the exercise provided into JSON format: { "muscleGroup": "Chest"|"Back"|"Legs"|"Shoulders"|"Biceps"|"Triceps"|"Abs"|"Full Body", "category": "Push"|"Pull"|"Legs"|"Core"|"Full Body", "equipment": "Barbell"|"Dumbbells"|"Bodyweight"|"Machine"|"Cables"|"Bands"|"Kettlebell" }. Only return JSON.`,
+            `Exercise: ${name}`
+        );
+
+        if (aiResponse) {
+            try {
+                // Cleanup JSON formatting if md code block is returned
+                const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(jsonStr);
+                return {
+                    muscleGroup: parsed.muscleGroup || 'Full Body',
+                    category: parsed.category || 'Full Body',
+                    equipment: parsed.equipment || 'Bodyweight' // AI guess or default
+                };
+            } catch (e) {
+                console.warn('AI Parse Error, falling back to regex', e);
+            }
+        }
+
+        // --- FALLBACK REGEX LOGIC ---
         const lower = name.toLowerCase();
 
-        let muscleGroup = 'Full Body'; // Default
-        let category: 'Push' | 'Pull' | 'Legs' | 'Core' | 'Full Body' | 'Cardio' = 'Full Body';
+        let muscleGroup = 'Full Body';
+        let category: any = 'Full Body';
         let equipment = 'Bodyweight';
 
         // 1. Detect Muscle Group
@@ -46,16 +99,13 @@ export const SmartParser = {
         }
         else if (KEYWORDS.core.some(k => lower.includes(k))) muscleGroup = 'Abs';
 
-        // 2. Detect Category (Push/Pull/Legs/etc)
-        if (muscleGroup === 'Chest' || muscleGroup === 'Shoulders' || muscleGroup === 'Triceps') category = 'Push';
-        else if (muscleGroup === 'Back' || muscleGroup === 'Biceps') category = 'Pull';
+        // 2. Detect Category
+        if (['Chest', 'Shoulders', 'Triceps'].includes(muscleGroup)) category = 'Push';
+        else if (['Back', 'Biceps'].includes(muscleGroup)) category = 'Pull';
         else if (muscleGroup === 'Legs') category = 'Legs';
         else if (muscleGroup === 'Abs') category = 'Core';
 
-        // 3. Detect Equipment Context
-        // If nothing specified in name, default to common sense or what was passed?
-        // We usually can't tell equipment just from "Curl" (could be DB or BB).
-        // Defaulting to "Dumbbells" for isolation is often safe, or "Bodyweight" for calisthenics names.
+        // 3. Detect Equipment
         if (lower.includes('barbell')) equipment = 'Barbell';
         else if (lower.includes('dumbbell')) equipment = 'Dumbbells';
         else if (lower.includes('cable')) equipment = 'Cables';
@@ -69,7 +119,24 @@ export const SmartParser = {
     /**
      * Parses a free-form user prompt to identify available equipment.
      */
-    parseEquipmentPrompt: (text: string): string[] => {
+    parseEquipmentPrompt: async (text: string): Promise<string[]> => {
+        // Try AI First
+        const aiResponse = await callOpenAI(
+            `You are a gym equipment scanner. Read the user's description and return a JSON array of detected equipment from this specific list ONLY: ["Barbell", "Dumbbells", "Kettlebell", "Machine", "Cables", "Bands", "Bodyweight"]. If they imply having a full gym, include relevant items. If empty/none, return ["Bodyweight"]. Example output: ["Dumbbells", "Bands"]`,
+            `User Setup: ${text}`
+        );
+
+        if (aiResponse) {
+            try {
+                const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(jsonStr);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                console.warn('AI Equipment Parse Error, falling back to regex', e);
+            }
+        }
+
+        // --- FALLBACK REGEX LOGIC ---
         const lower = text.toLowerCase();
         const detected: string[] = [];
 
@@ -80,12 +147,10 @@ export const SmartParser = {
         if (KEYWORDS.kettlebell.some(k => lower.includes(k))) detected.push('Kettlebell');
         if (KEYWORDS.bands.some(k => lower.includes(k))) detected.push('Bands');
 
-        // Always assume Bodyweight is possible unless explicitly excluded? 
-        // Or if they say "I have nothing", map to Bodyweight.
         if (detected.length === 0 || lower.includes('body') || lower.includes('nothing') || lower.includes('none')) {
             detected.push('Bodyweight');
         }
 
-        return Array.from(new Set(detected)); // De-dupe
+        return Array.from(new Set(detected));
     }
 };
