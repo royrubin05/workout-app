@@ -6,6 +6,7 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import { triggerConfetti } from '../utils/confetti';
 
 import { CustomizeWorkoutModal } from '../components/CustomizeWorkoutModal';
+import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 
 export const Home: React.FC = () => {
     const {
@@ -13,7 +14,6 @@ export const Home: React.FC = () => {
         refreshWorkout,
         currentSplit,
         excludeExercise,
-
         replaceExercise,
         reorderWorkout,
         toggleExerciseCompletion,
@@ -26,8 +26,6 @@ export const Home: React.FC = () => {
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
-
-    // Removed handleComplete as we now auto-log via state
 
     // Smart Instruction Generator (simulating AI)
     const getSmartInstructions = (exercise: any) => {
@@ -259,15 +257,13 @@ export const Home: React.FC = () => {
             <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8">
                 <AnimatePresence mode="popLayout">
                     {dailyWorkout.map((exercise) => (
-                        <ExerciseItem // Changed from ExerciseCard to ExerciseItem as per original code's component name
+                        <ExerciseItem
                             key={exercise.id || exercise.name}
                             exercise={exercise}
                             toggleExerciseCompletion={toggleExerciseCompletion}
                             setPreviewImage={setPreviewImage}
                             replaceExercise={replaceExercise}
                             excludeExercise={excludeExercise}
-                            favorites={favorites} // Pass favorites
-                            toggleFavorite={toggleFavorite} // Pass toggleFavorite
                         />
                     ))}
                 </AnimatePresence>
@@ -284,9 +280,9 @@ export const Home: React.FC = () => {
 };
 
 // Extracted component for Drag Controls
-const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, replaceExercise, excludeExercise, favorites, toggleFavorite }: any) => {
+const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, replaceExercise, excludeExercise }: any) => {
     const controls = useDragControls();
-    const { favorites, toggleFavorite } = useWorkout(); // Use hook directly for cleaner prop drilling
+    const { favorites, toggleFavorite } = useWorkout();
     const timeoutRef = React.useRef<any>(null);
 
     const isFavorite = favorites.includes(exercise.name);
@@ -323,106 +319,101 @@ const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, rep
             value={exercise}
             dragListener={false}
             dragControls={controls}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="relative"
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
+            className="touch-none select-none"
         >
-            <div className={`glass-card p-4 flex items-center gap-4 group transition-all ${exercise.completed ? 'opacity-60 bg-slate-900/50' : ''}`}>
-                {/* Drag Handle - ONLY this triggers drag (Long Press) */}
+            <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                className={`relative overflow-hidden glass-card p-4 flex items-center justify-between group ${exercise.completed ? 'opacity-50 grayscale' : ''}`}
+            >
+                {/* Drag Handle Area */}
                 <div
-                    className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400 p-2 -ml-2 touch-none select-none"
+                    className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center cursor-grab active:cursor-grabbing z-10"
                     onPointerDown={handlePointerDown}
+                    onPointerUp={handlePointerUp}
+                    onPointerLeave={handlePointerUp}
+                    style={{ touchAction: 'none' }}
                 >
-                    <GripVertical size={20} />
+                    <GripVertical size={16} className="text-slate-600" />
                 </div>
 
-                {/* Favorite Toggle */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(exercise.name);
-                    }}
-                    className={`p-2 transition-colors ${isFavorite ? 'text-yellow-400' : 'text-slate-700 hover:text-yellow-400/50'}`}
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill={isFavorite ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="w-5 h-5"
+                <div className="flex items-center gap-4 pl-8 flex-1">
+                    <button
+                        onClick={() => toggleExerciseCompletion(exercise.id)}
+                        className={`shrink-0 transition-colors ${exercise.completed ? 'text-emerald-500' : 'text-slate-600 hover:text-slate-400'}`}
                     >
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                </button>
-
-                {/* Image */}
-                <div
-                    className={`w-16 h-16 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden border border-slate-700 cursor-pointer hover:border-blue-500 transition-colors ${exercise.completed ? 'grayscale' : ''}`}
-                    onClick={() => exercise.gifUrl && setPreviewImage(exercise)}
-                >
-                    {exercise.gifUrl ? (
-                        <img src={exercise.gifUrl} alt={exercise.name} className="w-full h-full object-cover" />
-                    ) : (
-                        <span>{exercise.name[0]}</span>
-                    )}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                    <h4 className={`font-bold text-lg text-white mb-1 truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
-                        {exercise.name}
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                        <span className="px-2 py-1 rounded-md bg-blue-500/20 text-blue-300 text-xs font-medium">
-                            {exercise.equipment}
-                        </span>
-                        <span className="px-2 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium">
-                            {exercise.muscleGroup}
-                        </span>
+                        {exercise.completed ? <CheckCircle2 size={24} /> : <MinusCircle size={24} />}
+                    </button>
+                    <div className="flex-1 min-w-0" onClick={() => setPreviewImage(exercise)}>
+                        <h3 className={`font-bold text-white truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
+                            {exercise.name}
+                        </h3>
+                        {/* Muscle/Equipment Badge */}
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                                {exercise.muscleGroup}
+                            </span>
+                            {exercise.equipment !== 'Bodyweight' && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-300 border border-blue-800/30">
+                                    {exercise.equipment}
+                                </span>
+                            )}
+                            {exercise.isCustom && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-300 border border-purple-800/30 flex items-center gap-1">
+                                    AI <Zap size={8} />
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1 truncate">
+                            {exercise.sets} sets • {exercise.reps} • {exercise.notes}
+                        </p>
                     </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 pl-2">
+                    {/* Favorite Button */}
                     <button
-                        onClick={() => {
-                            if (!exercise.completed) {
-                                triggerConfetti();
-                            }
-                            toggleExerciseCompletion(exercise.name);
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(exercise.name);
                         }}
-                        className={`p-3 rounded-xl transition-all ${exercise.completed
-                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                            }`}
+                        className={`p-2 transition-colors ${isFavorite ? 'text-yellow-500' : 'text-slate-600 hover:text-yellow-500/50'}`}
                     >
-                        <CheckCircle2 size={24} />
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill={isFavorite ? "currentColor" : "none"}
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
                     </button>
 
+                    {/* Replacement Actions */}
                     <div className="flex flex-col gap-1">
                         <button
-                            onClick={() => replaceExercise(exercise.name)}
-                            className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); replaceExercise(exercise.id); }}
+                            className="p-1.5 text-slate-600 hover:text-blue-400 bg-slate-800/50 rounded"
                             title="Swap Exercise"
                         >
-                            <RefreshCw size={16} />
+                            <RefreshCw size={14} />
                         </button>
                         <button
-                            onClick={() => excludeExercise(exercise.name)}
-                            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); excludeExercise(exercise.name); }}
+                            className="p-1.5 text-slate-600 hover:text-red-400 bg-slate-800/50 rounded"
                             title="Exclude Exercise"
                         >
-                            <MinusCircle size={16} />
+                            <X size={14} />
                         </button>
                     </div>
                 </div>
-            </div>
+            </motion.div>
         </Reorder.Item>
     );
 };
