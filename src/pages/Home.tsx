@@ -144,8 +144,9 @@ export const Home: React.FC = () => {
     };
 
     return (
-        <div className="relative">
+        <div className="relative pb-24 px-4 pt-6 max-w-xl mx-auto space-y-6">
             <CustomizeWorkoutModal isOpen={isCustomizeOpen} onClose={() => setIsCustomizeOpen(false)} />
+            <UpcomingWorkoutModal isOpen={false} onClose={() => { }} />
 
             {/* Image Preview Modal */}
             <AnimatePresence>
@@ -199,34 +200,8 @@ export const Home: React.FC = () => {
                 )}
             </AnimatePresence>
 
-                            title="Customize Workout"
-                        >
-                            <Brain size={20} />
-                        </button>
-
-                        <select
-                            value={customWorkoutActive ? 'Custom' : focusArea}
-                            onChange={(e) => {
-                                if (e.target.value === 'Custom') return; // Don't do anything, button handles it
-                                if (customWorkoutActive) clearCustomWorkout(); // Clear custom if they pick dropdown
-                                setFocusArea(e.target.value);
-                            }}
-                            className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
-                        >
-                            <option value="Default">Standard Split</option>
-                            <option value="Chest">Focus: Chest</option>
-                            <option value="Back">Focus: Back</option>
-                            <option value="Legs">Focus: Legs</option>
-                            <option value="Shoulders">Focus: Shoulders</option>
-                            <option value="Arms">Focus: Arms</option>
-                            <option value="Bodyweight">Focus: Bodyweight / Travel</option>
-                            {customWorkoutActive && <option value="Custom">Custom Selection</option>}
-                        </select>
-                        <button
-                            onClick={refreshWorkout}
-                            className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
             {/* Header and Controls */}
-            <div className="flex flex-col gap-4 mb-6">
+            <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                     <h1 className="text-3xl font-bold text-white">Your Workout</h1>
                     <button
@@ -246,7 +221,7 @@ export const Home: React.FC = () => {
                             if (customWorkoutActive) clearCustomWorkout(); // Clear custom if they pick dropdown
                             setFocusArea(e.target.value);
                         }}
-                        className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                        className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-500"
                     >
                         <option value="Default">Standard Split</option>
                         <option value="Chest">Focus: Chest</option>
@@ -277,32 +252,39 @@ export const Home: React.FC = () => {
                             {getAISummary()}
                         </p>
                     </div>
-                        key={exercise.name}
-                        exercise={exercise}
-                        toggleExerciseCompletion={toggleExerciseCompletion}
-                        setPreviewImage={setPreviewImage}
-                        replaceExercise={replaceExercise}
-                        excludeExercise={excludeExercise}
-                    />
-                ))}
-            </AnimatePresence>
-        </Reorder.Group>
-
-        {
-        dailyWorkout.length === 0 && (
-            <div className="text-center py-10 text-slate-500">
-                <p>No exercises found for your equipment.</p>
-                <p className="text-sm mt-2">Update your settings to add equipment.</p>
+                </div>
             </div>
-        )
-    }
-    </div >
-        </div >
+
+            {/* Exercise List */}
+            <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8">
+                <AnimatePresence mode="popLayout">
+                    {dailyWorkout.map((exercise) => (
+                        <ExerciseItem // Changed from ExerciseCard to ExerciseItem as per original code's component name
+                            key={exercise.id || exercise.name}
+                            exercise={exercise}
+                            toggleExerciseCompletion={toggleExerciseCompletion}
+                            setPreviewImage={setPreviewImage}
+                            replaceExercise={replaceExercise}
+                            excludeExercise={excludeExercise}
+                            favorites={favorites} // Pass favorites
+                            toggleFavorite={toggleFavorite} // Pass toggleFavorite
+                        />
+                    ))}
+                </AnimatePresence>
+            </Reorder.Group>
+
+            {dailyWorkout.length === 0 && (
+                <div className="text-center py-10 text-slate-500">
+                    <p>No exercises found for your equipment.</p>
+                    <p className="text-sm mt-2">Update your settings to add equipment.</p>
+                </div>
+            )}
+        </div>
     );
 };
 
 // Extracted component for Drag Controls
-const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, replaceExercise, excludeExercise }: any) => {
+const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, replaceExercise, excludeExercise, favorites, toggleFavorite }: any) => {
     const controls = useDragControls();
     const { favorites, toggleFavorite } = useWorkout(); // Use hook directly for cleaner prop drilling
     const timeoutRef = React.useRef<any>(null);

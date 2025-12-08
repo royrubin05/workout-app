@@ -1,4 +1,3 @@
-```javascript
 import React, { useState } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
 import { Trash2, Plus, Star, Dumbbell, CalendarDays, History, Brain, RefreshCw } from 'lucide-react';
@@ -57,7 +56,7 @@ export const Settings: React.FC = () => {
         if (!newExercise.name) return;
 
         const ex: any = {
-            id: `custom - ${ Date.now() } `,
+            id: `custom-${Date.now()}`,
             name: newExercise.name,
             muscleGroup: newExercise.muscleGroup,
             equipment: newExercise.equipment,
@@ -84,15 +83,14 @@ export const Settings: React.FC = () => {
                 <div className="flex gap-2">
                     <button
                         onClick={() => setShowKeyInput(!showKeyInput)}
-                        className={`text - xs px - 3 py - 1.5 rounded - full border transition - colors ${
-    apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
-} `}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+                            }`}
                     >
                         {apiKey ? 'AI Active' : 'Enable AI'}
                     </button>
                     {/* Sync Status Badge */}
                     <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
-                        <div className={`w - 2 h - 2 rounded - full ${ connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500' } `} />
+                        <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
                         <div className="text-xs text-slate-400 font-medium">
                             {connectionStatus === 'connected' ? 'Synced' : 'Offline'}
                         </div>
@@ -116,7 +114,7 @@ export const Settings: React.FC = () => {
                         />
                     </div>
                     <p className="text-[10px] text-slate-500 mt-2">
-                        Your key is stored locally on this device. We use `gpt - 4o - mini` for smart features.
+                        Your key is stored locally on this device. We use `gpt-4o-mini` for smart features.
                         <br />Without a key, we use a basic offline simulation.
                     </p>
                 </div>
@@ -147,11 +145,10 @@ export const Settings: React.FC = () => {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex - 1 flex items - center justify - center gap - 2 py - 2.5 rounded - lg text - sm font - bold transition - all ${
-    activeTab === tab.id
-        ? 'bg-slate-800 text-white shadow-sm'
-        : 'text-slate-500 hover:text-slate-300'
-} `}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id
+                                ? 'bg-slate-800 text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-300'
+                            }`}
                     >
                         <tab.icon size={16} className={activeTab === tab.id ? 'text-blue-400' : ''} />
                         {tab.label}
@@ -193,10 +190,9 @@ export const Settings: React.FC = () => {
                                         alert('Profile Saved! We have filtered your exercises.');
                                     }}
                                     disabled={isScanning || !apiKey}
-                                    className={`px - 6 py - 2.5 rounded - lg text - sm font - bold flex items - center gap - 2 transition - all ${
-    !apiKey ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :
-        isScanning ? 'bg-indigo-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'
-} `}
+                                    className={`px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${!apiKey ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :
+                                            isScanning ? 'bg-indigo-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'
+                                        }`}
                                 >
                                     {isScanning ? (
                                         <>Scanning...</>

@@ -1050,114 +1050,159 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
     };
 
+    // AI PROFILE UPDATE
+    const addCustomExercise = async (prompt: string) => {
+        console.log('Creating Custom Exercise from:', prompt);
+        try {
+            const newEx = await SmartParser.createExerciseFromPrompt(prompt);
+
+            // Assign ID
+            const exObj: Exercise = {
+                id: `custom-${Date.now()}`,
+                ...newEx,
+                gifUrl: '' // No GIF for custom yet
+            };
+
+            setState(prev => {
+                const updated = [...prev.customExercises, exObj];
+                return {
+                    ...prev,
+                    customExercises: updated
+                };
+            });
+            // Also add to all available exercises so it appears immediately
+            setAllExercises(prev => [...prev, exObj]);
+            // Note: In a real app we might want to dedupe or handle this better, 
+            // but for now this ensures immediate availability.
+
+            return exObj;
+        } catch (e) {
+            console.error('Failed to create custom exercise', e);
+            throw e;
+        }
+    };
+
     const toggleFavorite = (exerciseName: string) => {
-    }));
-    // Remove from allExercises if it was purely local? 
-    // For simplicity, we keep it in allExercises until refresh to avoid issues.
-};
+        setState(prev => {
+            const isFav = prev.favorites.includes(exerciseName);
+            return {
+                ...prev,
+                favorites: isFav
+                    ? prev.favorites.filter(n => n !== exerciseName)
+                    : [...prev.favorites, exerciseName]
+            };
+        });
+    };
 
-const updateUserEquipmentProfile = async (profile: string) => {
-    console.log('Updating Equipment Profile:', profile);
+    const deleteCustomExercise = (exerciseName: string) => {
+        setState(prev => ({
+            ...prev,
+            customExercises: prev.customExercises.filter(e => e.name !== exerciseName)
+        }));
+    };
 
-    // 1. Update Profile String State
-    setState(prev => ({ ...prev, userEquipmentProfile: profile }));
-    localStorage.setItem('user_equipment_profile', profile);
+    const updateUserEquipmentProfile = async (profile: string) => {
+        console.log('Updating Equipment Profile:', profile);
 
-    if (!profile.trim()) {
-        // Clear whitelist if empty
-        setState(prev => ({ ...prev, availableExerciseNames: [] }));
-        localStorage.setItem('available_exercise_names', '[]');
-        return;
-    }
+        // 1. Update Profile String State
+        setState(prev => ({ ...prev, userEquipmentProfile: profile }));
+        localStorage.setItem('user_equipment_profile', profile);
 
-    // 2. Call AI/Parser to get Whitelist
-    const whitelist = await SmartParser.filterExercisesByProfile(profile, allExercises);
-    console.log(`AI Whitelist Generated: ${whitelist.length} exercises valid.`);
+        if (!profile.trim()) {
+            // Clear whitelist if empty
+            setState(prev => ({ ...prev, availableExerciseNames: [] }));
+            localStorage.setItem('available_exercise_names', '[]');
+            return;
+        }
 
-    // 3. Update Whitelist State
-    setState(prev => ({ ...prev, availableExerciseNames: whitelist }));
-    localStorage.setItem('available_exercise_names', JSON.stringify(whitelist));
+        // 2. Call AI/Parser to get Whitelist
+        const whitelist = await SmartParser.filterExercisesByProfile(profile, allExercises);
+        console.log(`AI Whitelist Generated: ${whitelist.length} exercises valid.`);
 
-    // 4. Regenerate Workout with new pool
-    // setTimeout(() => generateWorkout(state.currentSplit), 100);
-};
+        // 3. Update Whitelist State
+        setState(prev => ({ ...prev, availableExerciseNames: whitelist }));
+        localStorage.setItem('available_exercise_names', JSON.stringify(whitelist));
 
-const value = {
-    ...state,
-    allExercises: getAllExercises(),
-    updateEquipment,
-    logWorkout,
-    refreshWorkout,
-    getAvailableExercises,
-    excludeExercise,
-    restoreExercise,
-    replaceExercise,
-    toggleExerciseCompletion,
-    reorderWorkout,
-    setFocusArea,
-    generateCustomWorkout,
-    clearCustomWorkout,
-    toggleFavorite,
-    addCustomExercise,
-    deleteCustomExercise,
-    updateUserEquipmentProfile
-};
+        // 4. Regenerate Workout with new pool
+        // setTimeout(() => generateWorkout(state.currentSplit), 100);
+    };
 
-return (
-    <WorkoutContext.Provider value={value}>
-        <AnimatePresence mode="wait">
-            {!isLoaded ? (
-                <motion.div
-                    key="loading"
-                    initial={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 text-white"
-                >
-                    <div className="w-64 space-y-6 text-center">
-                        {/* Logo or Icon */}
-                        <motion.div
-                            animate={{
-                                scale: [1, 1.1, 1],
-                                rotate: [0, 5, -5, 0]
-                            }}
-                            transition={{
-                                duration: 2,
-                                repeat: Infinity,
-                                ease: "easeInOut"
-                            }}
-                            className="text-4xl mb-4"
-                        >
-                            💪
-                        </motion.div>
+    const value = {
+        ...state,
+        allExercises: getAllExercises(),
+        updateEquipment,
+        logWorkout,
+        refreshWorkout,
+        getAvailableExercises,
+        excludeExercise,
+        restoreExercise,
+        replaceExercise,
+        toggleExerciseCompletion,
+        reorderWorkout,
+        setFocusArea,
+        generateCustomWorkout,
+        clearCustomWorkout,
+        toggleFavorite,
+        addCustomExercise,
+        deleteCustomExercise,
+        updateUserEquipmentProfile
+    };
 
-                        {/* Progress Bar */}
-                        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+    return (
+        <WorkoutContext.Provider value={value}>
+            <AnimatePresence mode="wait">
+                {!isLoaded ? (
+                    <motion.div
+                        key="loading"
+                        initial={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 text-white"
+                    >
+                        <div className="w-64 space-y-6 text-center">
+                            {/* Logo or Icon */}
                             <motion.div
-                                className="h-full bg-blue-500"
-                                initial={{ width: "0%" }}
-                                animate={{ width: `${loadingProgress}%` }}
-                                transition={{ type: "spring", stiffness: 50 }}
-                            />
-                        </div>
+                                animate={{
+                                    scale: [1, 1.1, 1],
+                                    rotate: [0, 5, -5, 0]
+                                }}
+                                transition={{
+                                    duration: 2,
+                                    repeat: Infinity,
+                                    ease: "easeInOut"
+                                }}
+                                className="text-4xl mb-4"
+                            >
+                                💪
+                            </motion.div>
 
-                        {/* Text */}
-                        <motion.p
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="text-slate-400 font-medium h-6"
-                        >
-                            Loading...
-                        </motion.p>
-                    </div>
-                </motion.div>
-            ) : (
-                children
-            )}
-        </AnimatePresence>
-    </WorkoutContext.Provider>
-);
+                            {/* Progress Bar */}
+                            <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                                <motion.div
+                                    className="h-full bg-blue-500"
+                                    initial={{ width: "0%" }}
+                                    animate={{ width: `${loadingProgress}%` }}
+                                    transition={{ type: "spring", stiffness: 50 }}
+                                />
+                            </div>
+
+                            {/* Text */}
+                            <motion.p
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="text-slate-400 font-medium h-6"
+                            >
+                                Loading...
+                            </motion.p>
+                        </div>
+                    </motion.div>
+                ) : (
+                    children
+                )}
+            </AnimatePresence>
+        </WorkoutContext.Provider>
+    );
 };
 
 export const useWorkout = () => {
