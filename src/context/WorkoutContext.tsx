@@ -37,7 +37,6 @@ interface WorkoutState {
     favorites: string[];
     customExercises: Exercise[];
     userEquipmentProfile: string;
-    userEquipmentProfile: string;
     availableExerciseNames: string[]; // Whitelist of valid exercises based on profile
     openaiApiKey: string;
     strategyInsight: string; // NEW: Real-time AI Strategy
@@ -88,8 +87,6 @@ const initialState: WorkoutState = {
     customEquipment: [],
     favorites: [],
     customExercises: [],
-    userEquipmentProfile: '',
-    availableExerciseNames: [],
     userEquipmentProfile: '',
     availableExerciseNames: [],
     openaiApiKey: localStorage.getItem('openai_api_key') || '',
