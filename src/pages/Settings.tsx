@@ -15,6 +15,7 @@ export const Settings: React.FC = () => {
         customExercises,
         addCustomExercise,
         deleteCustomExercise,
+        userEquipmentProfile, // Added state access
         updateUserEquipmentProfile,
         openaiApiKey,
         setOpenaiApiKey,
