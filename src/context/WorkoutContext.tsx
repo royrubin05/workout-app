@@ -336,7 +336,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // Added: favorites, user_equipment_profile, custom_exercises
                 const { data: settingsData } = await supabase
                     .from('user_settings')
-                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key')
+                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key, available_exercise_names')
                     .eq('id', userId)
                     .single();
 
@@ -352,7 +352,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
                     const newFavorites = settingsData?.favorites || prev.favorites || [];
                     const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
-                    const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey; // Removed localStorage fallback
+                    const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey || localStorage.getItem('openai_api_key') || '';
+                    const newAvailableExercises = settingsData?.available_exercise_names || prev.availableExerciseNames || [];
 
                     // Restore full state
                     const newSplit = settingsData?.current_split || prev.currentSplit;
@@ -392,7 +393,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         history: cloudHistory.length > 0 ? cloudHistory : prev.history,
                         connectionStatus: 'connected',
                         lastSyncTime: new Date().toLocaleTimeString(),
-                        openaiApiKey: newApiKey
+                        openaiApiKey: newApiKey,
+                        availableExerciseNames: newAvailableExercises
                     };
                 });
 
@@ -440,6 +442,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     completed_today: state.completedToday,
                     focus_area: state.focusArea,
                     openai_api_key: state.openaiApiKey,
+                    available_exercise_names: state.availableExerciseNames,
                     updated_at: new Date().toISOString()
                 });
 
@@ -460,7 +463,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         state.lastWorkoutDate,
         state.completedToday,
         state.focusArea,
+        state.focusArea,
         state.openaiApiKey, // Ensure API Key changes trigger sync
+        state.availableExerciseNames, // Sync Whitelist
         isLoaded,
         state.connectionStatus
     ]);
