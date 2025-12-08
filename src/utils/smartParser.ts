@@ -192,18 +192,32 @@ export const SmartParser = {
             return allExercises.map(e => e.name);
         }
 
-        /**
-         * Generates a full workout routine using AI.
-         */
-        generateAIWorkout: async (
-            split: string,
-            focusArea: string,
-            equipmentProfile: string,
-            availableExercises: string[],
-            favorites: string[] = [] // NEW: Favorites List
-        ): Promise<{ name: string, sets: string, reps: string, note: string }[]> => {
+        // Filter based on detected equipment flags
+        return allExercises.filter(ex => {
+            const eq = ex.equipment ? ex.equipment.toLowerCase() : '';
+            if (!eq || eq === 'bodyweight') return true;
+            if (hasDumbbells && eq.includes('dumbbell')) return true;
+            if (hasBarbell && eq.includes('barbell')) return true;
+            if (hasCables && (eq.includes('cable') || eq.includes('machine'))) return true;
+            if (hasMachine && eq.includes('machine')) return true;
+            if (hasBands && eq.includes('band')) return true;
+            if (hasKettlebell && (eq.includes('kettlebell') || eq.includes('kb'))) return true;
+            return false;
+        }).map(e => e.name);
+    },
 
-            const prompt = `
+    /**
+     * Generates a full workout routine using AI.
+     */
+    generateAIWorkout: async (
+        split: string,
+        focusArea: string,
+        equipmentProfile: string,
+        availableExercises: string[],
+        favorites: string[] = [] // NEW: Favorites List
+    ): Promise<{ name: string, sets: string, reps: string, note: string }[]> => {
+
+        const prompt = `
         Create a perfect ${split} workout focusing on ${focusArea}.
         User Equipment: ${equipmentProfile || "Bodyweight"}
         
@@ -222,27 +236,27 @@ export const SmartParser = {
         Output format: [{"name": "Bench Press", "sets": "4", "reps": "5-8", "note": "Explode up"}]
         `;
 
-            const response = await callOpenAI("You are a world-class program designer. Return ONLY JSON.", prompt);
+        const response = await callOpenAI("You are a world-class program designer. Return ONLY JSON.", prompt);
 
-            if (response) {
-                try {
-                    const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
-                    const parsed = JSON.parse(jsonStr);
-                    if (Array.isArray(parsed)) return parsed;
-                } catch (e) {
-                    console.error("AI Workout Parse Error", e);
-                }
+        if (response) {
+            try {
+                const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(jsonStr);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                console.error("AI Workout Parse Error", e);
             }
+        }
 
-            return [];
-        },
+        return [];
+    },
 
-            /**
-             * Creates a NEW Exercise object from a natural language prompt.
-             * Guaranteed to return a valid object for the DB.
-             */
-            createExerciseFromPrompt: async (prompt: string): Promise<{ name: string, muscleGroup: string, category: string, equipment: string, description: string }> => {
-                const query = `
+    /**
+     * Creates a NEW Exercise object from a natural language prompt.
+     * Guaranteed to return a valid object for the DB.
+     */
+    createExerciseFromPrompt: async (prompt: string): Promise<{ name: string, muscleGroup: string, category: string, equipment: string, description: string }> => {
+        const query = `
         User wants to create a new exercise: "${prompt}"
         
         Return a JSON object with:
@@ -253,31 +267,31 @@ export const SmartParser = {
         - description: A 1-sentence form cue.
         `;
 
-                const response = await callOpenAI("You are a fitness data expert.", query);
+        const response = await callOpenAI("You are a fitness data expert.", query);
 
-                if (response) {
-                    try {
-                        const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
-                        const parsed = JSON.parse(jsonStr);
-                        return {
-                            name: parsed.name || prompt,
-                            muscleGroup: parsed.muscleGroup || 'Full Body',
-                            category: parsed.category || 'Full Body',
-                            equipment: parsed.equipment || 'Bodyweight',
-                            description: parsed.description || 'Custom Exercise'
-                        };
-                    } catch (e) {
-                        console.error("AI Create Error", e);
-                    }
-                }
-
-                // Fallback
+        if (response) {
+            try {
+                const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(jsonStr);
                 return {
-                    name: prompt,
-                    muscleGroup: 'Full Body',
-                    category: 'Full Body',
-                    equipment: 'Bodyweight',
-                    description: 'Custom Created Exercise'
+                    name: parsed.name || prompt,
+                    muscleGroup: parsed.muscleGroup || 'Full Body',
+                    category: parsed.category || 'Full Body',
+                    equipment: parsed.equipment || 'Bodyweight',
+                    description: parsed.description || 'Custom Exercise'
                 };
+            } catch (e) {
+                console.error("AI Create Error", e);
             }
-    };
+        }
+
+        // Fallback
+        return {
+            name: prompt,
+            muscleGroup: 'Full Body',
+            category: 'Full Body',
+            equipment: 'Bodyweight',
+            description: 'Custom Created Exercise'
+        };
+    }
+};
