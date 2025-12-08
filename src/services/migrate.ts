@@ -35,10 +35,11 @@ export const migrateExercises = async (force: boolean = false) => {
         if (apiData.length > 0) {
             const mapped = mapApiToInternal(apiData);
             exercisesToInsert = mapped.map(ex => ({
+                id: ex.id, // REQUIRED: DB expects non-null ID
                 name: ex.name,
                 category: ex.category,
                 muscle_group: ex.muscleGroup,
-                equipment: ex.equipment, // stored as string? or array? API returns string usually
+                equipment: ex.equipment,
                 gif_url: ex.gifUrl
             }));
             console.log(`Using ${exercisesToInsert.length} API exercises (with GIFs).`);
@@ -49,11 +50,12 @@ export const migrateExercises = async (force: boolean = false) => {
 
     if (exercisesToInsert.length === 0) {
         console.log('Using Static Fallback Data (No GIFs).');
-        exercisesToInsert = BASE_MOVEMENTS.map(ex => ({
+        exercisesToInsert = BASE_MOVEMENTS.map((ex, i) => ({
+            id: `static-${Date.now()}-${i}`, // Generate ID
             name: ex.name,
             category: ex.category,
             muscle_group: ex.muscles,
-            equipment: Array.isArray(ex.equipment) ? ex.equipment.join(',') : ex.equipment, // Flatten for DB if text
+            equipment: Array.isArray(ex.equipment) ? ex.equipment.join(',') : ex.equipment,
         }));
     }
 
