@@ -1085,13 +1085,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                             {/* Text */}
                             <motion.p
-                                key={loadingText}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
                                 className="text-slate-400 font-medium h-6"
                             >
-                                {loadingText}
+                                Loading...
                             </motion.p>
                         </div>
                     </motion.div>
