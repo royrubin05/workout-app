@@ -58,6 +58,7 @@ interface WorkoutContextType extends WorkoutState {
 }
 
 import { supabase } from '../services/supabase';
+import { BASE_MOVEMENTS } from '../data/exercises'; // Assuming BASE_MOVEMENTS is defined here
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
 
@@ -87,38 +88,57 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [loadingText, setLoadingText] = useState('Warming up...');
 
     // Loading Animation Effect
+    // Load Exercises from DB on Mount
+    useEffect(() => {
+        const initializeData = async () => {
+            try {
+                // 1. Fetch from Supabase
+                const { data, error } = await supabase
+                    .from('exercises')
+                    .select('*');
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    console.log(`Loaded ${data.length} exercises from Supabase`);
+                    const dbExercises: Exercise[] = data.map(d => ({
+                        name: d.name,
+                        category: d.category,
+                        muscles: d.muscle_group, // Map DB 'muscle_group' -> App 'muscles'
+                        equipment: d.equipment,
+                        description: d.description,
+                        id: d.id
+                    }));
+                    setAllExercises(dbExercises);
+                    setState(prev => ({ ...prev, connectionStatus: 'connected' }));
+                } else {
+                    // 2. Fallback if DB empty (or first run before migration)
+                    console.log('DB empty, using static exercises');
+                    setAllExercises(BASE_MOVEMENTS);
+                    setState(prev => ({ ...prev, connectionStatus: 'connected' })); // Connected but empty is fine, we have data.
+                }
+            } catch (err) {
+                console.warn('Offline or DB Error, using static data:', err);
+                setAllExercises(BASE_MOVEMENTS);
+                setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+            } finally {
+                setIsLoaded(true);
+            }
+        };
+
+        initializeData();
+    }, []);
+
+    // Loading Animation (UI only)
     useEffect(() => {
         if (isLoaded) {
             setLoadingProgress(100);
             return;
         }
-
-        const texts = [
-            'Warming up...',
-            'Loading weights...',
-            'Chalking up...',
-            'Spotting you...',
-            'Stretching...',
-            'Hydrating...'
-        ];
-
-        let textIndex = 0;
-        const textInterval = setInterval(() => {
-            textIndex = (textIndex + 1) % texts.length;
-            setLoadingText(texts[textIndex]);
-        }, 800);
-
-        const progressInterval = setInterval(() => {
-            setLoadingProgress(prev => {
-                if (prev >= 90) return prev; // Hold at 90% until loaded
-                return prev + Math.random() * 10;
-            });
+        const interval = setInterval(() => {
+            setLoadingProgress(prev => Math.min(prev + 10, 90));
         }, 200);
-
-        return () => {
-            clearInterval(textInterval);
-            clearInterval(progressInterval);
-        };
+        return () => clearInterval(interval);
     }, [isLoaded]);
 
     // Initialize
