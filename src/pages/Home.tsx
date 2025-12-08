@@ -18,7 +18,6 @@ export const Home: React.FC = () => {
         focusArea,
         setFocusArea,
         customWorkoutActive,
-        customTargets,
         clearCustomWorkout,
         strategyInsight // Get strategy
     } = useWorkout();
