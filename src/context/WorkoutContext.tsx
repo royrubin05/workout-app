@@ -31,6 +31,11 @@ interface WorkoutState {
     connectionStatus: 'connected' | 'disconnected' | 'checking';
     connectionError: string | null;
     lastSyncTime: string | null;
+    customWorkoutActive: boolean;
+    customTargets: string[];
+    customEquipment: string[];
+    favorites: string[];
+    customExercises: Exercise[];
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -45,6 +50,11 @@ interface WorkoutContextType extends WorkoutState {
     toggleExerciseCompletion: (exerciseName: string) => void;
     reorderWorkout: (newOrder: WorkoutExercise[]) => void;
     setFocusArea: (area: string) => void;
+    generateCustomWorkout: (targets: string[], equipment: string[]) => void;
+    clearCustomWorkout: () => void;
+    toggleFavorite: (exerciseName: string) => void;
+    addCustomExercise: (exercise: Exercise) => void;
+    deleteCustomExercise: (exerciseName: string) => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -63,7 +73,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         excludedExercises: [],
         connectionStatus: 'checking',
         connectionError: null,
-        lastSyncTime: null
+        lastSyncTime: null,
+        customWorkoutActive: false,
+        customTargets: [],
+        customEquipment: [],
+        favorites: [],
+        customExercises: []
     });
 
     const [isLoaded, setIsLoaded] = useState(false);
@@ -287,7 +302,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
                     const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
                     const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
-                    const newFocusArea = settingsData?.focus_area || prev.focusArea || 'Default';
+                    // User Request: Always default to 'Standard Split' (Default) on initial load, ignoring saved focus
+                    const newFocusArea = 'Default';
 
                     // Merge history (avoid duplicates if any)
                     // Actually, cloud history should be the source of truth if we are syncing.
@@ -603,7 +619,21 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             });
 
             // Shuffle and pick
-            const shuffled = candidates.sort(() => 0.5 - Math.random());
+            // BOOST: Favorites get priority
+            // Sort by random, but give favorites a "bump"
+            const shuffled = candidates.sort((a, b) => {
+                const isFavA = state.favorites.includes(a.name);
+                const isFavB = state.favorites.includes(b.name);
+
+                // If one is favorite and other isn't, 50% chance to bump favorite to top
+                // Or just purely random sort?
+                // Let's implement a weighted random sort where favorites have 3x weight?
+                // Simpler approach: 
+                if (isFavA && !isFavB) return Math.random() < 0.7 ? -1 : 1; // 70% chance to prioritize A
+                if (!isFavA && isFavB) return Math.random() < 0.7 ? 1 : -1; // 70% chance to prioritize B
+
+                return 0.5 - Math.random();
+            });
             const picked = shuffled.slice(0, slot.count);
 
             picked.forEach(p => {
@@ -773,6 +803,91 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTimeout(() => generateWorkout(state.currentSplit, area), 0);
     };
 
+    const generateCustomWorkout = (targets: string[], equipment: string[]) => {
+        console.log('Generating Custom Workout for:', targets, equipment);
+
+        let availablePool = allExercises; // Start with everything
+
+        // 1. Filter by Equipment (if provided)
+        if (equipment.length > 0) {
+            // Normalize user selection first? Assuming simple strings for now
+            // Or reuse getAvailableExercises logic?
+            // getAvailableExercises logic is complex, let's reuse a simpified version
+            // or just use getAvailableExercises('Full Body') but passing the custom equipment string?
+            // Construct a fake "User Equipment String"
+            const eqString = equipment.join(', ');
+
+            // Normalize here to be safe
+            const userEq = normalizeUserEquipment(eqString);
+
+            availablePool = availablePool.filter(ex => {
+                const requiredEq = ex.equipment?.toLowerCase().trim();
+                if (!requiredEq) return false;
+                return userEq.some(u => {
+                    if (requiredEq.length < 3) return u === requiredEq;
+                    return requiredEq.includes(u) || u.includes(requiredEq);
+                });
+            });
+        }
+
+        const selected: WorkoutExercise[] = [];
+        const usedNames = new Set<string>();
+
+        // 2. Select Exercises for EACH Target
+        targets.forEach(target => {
+            // Find candidates matching this muscle group
+            const candidates = availablePool.filter(ex => {
+                if (state.excludedExercises.includes(ex.name)) return false;
+
+                const exMuscle = ex.muscleGroup.toLowerCase();
+                const t = target.toLowerCase();
+
+                const match = exMuscle.includes(t) ||
+                    (t === 'arms' && (exMuscle.includes('biceps') || exMuscle.includes('triceps'))) ||
+                    (t === 'push' && ['chest', 'shoulders', 'triceps'].some(m => exMuscle.includes(m))) ||
+                    (t === 'pull' && ['back', 'biceps', 'traps'].some(m => exMuscle.includes(m))) ||
+                    (t === 'legs' && ['quads', 'hamstrings', 'calves', 'glutes'].some(m => exMuscle.includes(m)));
+
+                return match && !usedNames.has(ex.name);
+            });
+
+            // Pick 2-3 per target
+            const count = Math.min(3, Math.max(2, Math.floor(8 / targets.length)));
+            const picked = candidates.sort(() => 0.5 - Math.random()).slice(0, count);
+
+            picked.forEach(p => {
+                selected.push(p);
+                usedNames.add(p.name);
+            });
+        });
+
+        // 3. Fallback? If none found
+        if (selected.length === 0) {
+            console.warn("No exercises found for custom criteria.");
+            // Maybe add a placeholder or keep empty?
+        }
+
+        setState(prev => ({
+            ...prev,
+            dailyWorkout: selected,
+            customWorkoutActive: true,
+            customTargets: targets,
+            customEquipment: equipment,
+            lastWorkoutDate: new Date().toDateString() // Mark as new
+        }));
+    };
+
+    const clearCustomWorkout = () => {
+        setState(prev => ({
+            ...prev,
+            customWorkoutActive: false,
+            customTargets: [],
+            customEquipment: []
+        }));
+        // Revert to standard
+        setTimeout(() => generateWorkout(state.currentSplit, state.focusArea), 0);
+    };
+
     const getAllExercises = () => {
         return allExercises;
     };
@@ -831,6 +946,36 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
     };
 
+    const toggleFavorite = (exerciseName: string) => {
+        setState(prev => {
+            const isFav = prev.favorites.includes(exerciseName);
+            return {
+                ...prev,
+                favorites: isFav
+                    ? prev.favorites.filter(n => n !== exerciseName)
+                    : [...prev.favorites, exerciseName]
+            };
+        });
+    };
+
+    const addCustomExercise = (exercise: Exercise) => {
+        setState(prev => ({
+            ...prev,
+            customExercises: [...prev.customExercises, exercise]
+        }));
+        // Also add to allExercises or handle merging?
+        // Ideally we merge on load, but for now let's just keep track.
+        setAllExercises(prev => [...prev, exercise]);
+    };
+
+    const deleteCustomExercise = (exerciseName: string) => {
+        setState(prev => ({
+            ...prev,
+            customExercises: prev.customExercises.filter(e => e.name !== exerciseName)
+        }));
+        setAllExercises(prev => prev.filter(e => e.name !== exerciseName));
+    };
+
 
 
     return (
@@ -846,7 +991,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             replaceExercise,
             toggleExerciseCompletion,
             reorderWorkout,
-            setFocusArea
+            setFocusArea,
+            generateCustomWorkout,
+            clearCustomWorkout,
+            toggleFavorite,
+            addCustomExercise,
+            deleteCustomExercise
         }}>
             <AnimatePresence mode="wait">
                 {!isLoaded ? (

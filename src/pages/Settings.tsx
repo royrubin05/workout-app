@@ -1,244 +1,268 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Save, MinusCircle, X, History } from 'lucide-react';
+import { Trash2, Plus, Star, Dumbbell, CalendarDays, History } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 
 export const Settings: React.FC = () => {
     const {
         equipment,
         updateEquipment,
-        allExercises,
-        getAvailableExercises,
         excludedExercises,
         restoreExercise,
+        favorites,
+        toggleFavorite,
+        customExercises,
+        addCustomExercise,
+        deleteCustomExercise,
         connectionStatus,
-        connectionError,
         lastSyncTime,
-        history
+        connectionError
     } = useWorkout();
 
-    const [input, setInput] = useState(equipment);
-    const [showModal, setShowModal] = useState(false);
-    const [showExcludedModal, setShowExcludedModal] = useState(false);
-    const [filteredExercises, setFilteredExercises] = useState<typeof allExercises>([]);
-    const [previewCount, setPreviewCount] = useState(0);
+    const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
+    const [showUpcomingModal, setShowUpcomingModal] = useState(false);
 
-    const [viewingHistoryItem, setViewingHistoryItem] = useState<typeof history[0] | null>(null);
-    const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+    // Custom Exercise Form State
+    const [newExercise, setNewExercise] = useState({
+        name: '',
+        muscleGroup: 'Chest',
+        equipment: 'Bodyweight'
+    });
 
-    // Calculate preview count
-    useEffect(() => {
-        const available = getAvailableExercises(input);
-        setPreviewCount(available.length);
-        setFilteredExercises(available);
-    }, [input, getAvailableExercises]);
+    const handleAddCustom = () => {
+        if (!newExercise.name) return;
 
-    const handleSave = () => {
-        updateEquipment(input);
-        setShowSaveConfirmation(true);
-        setTimeout(() => setShowSaveConfirmation(false), 2000);
+        const ex: any = {
+            id: `custom-${Date.now()}`,
+            name: newExercise.name,
+            muscleGroup: newExercise.muscleGroup,
+            equipment: newExercise.equipment,
+            type: 'Isolation', // Default
+            isCustom: true // Helper flag
+        };
+
+        addCustomExercise(ex);
+        setNewExercise({ ...newExercise, name: '' });
     };
 
+    const EQUIPMENT_OPTIONS = [
+        'Bodyweight', 'Dumbbells', 'Barbell', 'Cables', 'Machine', 'Kettlebell', 'Bands'
+    ];
+
     return (
-        <div className="space-y-6 pb-24 relative">
-            {/* Save Confirmation Toast/Modal */}
-            {showSaveConfirmation && (
-                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="bg-green-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium">
-                        <div className="bg-white/20 p-1 rounded-full">
-                            <Save size={16} />
-                        </div>
-                        Settings Saved Successfully!
-                    </div>
-                </div>
-            )}
+        <div className="max-w-xl mx-auto pb-24 space-y-6">
+            <UpcomingWorkoutModal isOpen={showUpcomingModal} onClose={() => setShowUpcomingModal(false)} />
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold text-white">Settings</h1>
 
-                {/* Connection Status */}
+                {/* Sync Status Badge */}
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
                     <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
                     <div className="text-xs text-slate-400 font-medium">
-                        {connectionStatus === 'connected' ? (
-                            <span>Synced {lastSyncTime && `• ${lastSyncTime}`}</span>
-                        ) : (
-                            <span title={connectionError || 'Unknown Error'}>
-                                Offline {connectionError && `(${connectionError})`}
-                            </span>
-                        )}
+                        {connectionStatus === 'connected' ? 'Synced' : 'Offline'}
                     </div>
                 </div>
             </div>
 
-            {/* Reports Link */}
-            <Link to="/reports" className="block mb-8">
-                <div className="glass-card p-4 flex items-center justify-between group hover:bg-slate-800/80 transition-colors">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
-                            <History size={20} />
-                        </div>
-                        <div>
-                            <div className="font-medium text-white">Workout History & Reports</div>
-                            <div className="text-xs text-slate-400">View your past workouts and progress</div>
-                        </div>
-                    </div>
-                </div>
-            </Link>
+            {/* Quick Actions Grid */}
+            <div className="grid grid-cols-2 gap-4">
+                <Link to="/reports" className="glass-card p-4 flex flex-col items-center justify-center gap-2 hover:bg-slate-800/80 transition-colors group text-center">
+                    <History className="text-emerald-400 group-hover:scale-110 transition-transform" size={24} />
+                    <span className="text-sm font-bold text-slate-200">History</span>
+                </Link>
+                <button
+                    onClick={() => setShowUpcomingModal(true)}
+                    className="glass-card p-4 flex flex-col items-center justify-center gap-2 hover:bg-slate-800/80 transition-colors group text-center"
+                >
+                    <CalendarDays className="text-purple-400 group-hover:scale-110 transition-transform" size={24} />
+                    <span className="text-sm font-bold text-slate-200">Next Workout</span>
+                </button>
+            </div>
 
-            {/* My Equipment */}
-            <div className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-white">My Equipment</h3>
+            {/* Tabs */}
+            <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                {[
+                    { id: 'equipment', label: 'Equipment', icon: Dumbbell },
+                    { id: 'favorites', label: 'Favorites', icon: Star },
+                    { id: 'custom', label: 'Custom', icon: Plus }
+                ].map(tab => (
                     <button
-                        onClick={() => setShowModal(true)}
-                        className="text-sm text-blue-400 hover:text-blue-300"
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id
+                                ? 'bg-slate-800 text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-300'
+                            }`}
                     >
-                        {previewCount} Available Exercises
+                        <tab.icon size={16} className={activeTab === tab.id ? 'text-blue-400' : ''} />
+                        {tab.label}
                     </button>
-                </div>
-                <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    className="w-full h-32 bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
-                    placeholder="Enter your equipment (e.g. Dumbbells, Pull-up bar, Bands...)"
-                />
-                <div className="mt-4 flex justify-end">
-                    <button onClick={handleSave} className="btn-primary flex items-center justify-center gap-2">
-                        <Save size={20} />
-                        Save Settings
-                    </button>
-                </div>
+                ))}
             </div>
 
-            {/* Preferences */}
-            <div className="glass-card p-6">
-                <h3 className="text-xl font-bold text-white mb-4">Preferences</h3>
+            <div className="glass-card p-6 min-h-[400px]">
 
-                {/* Bodyweight Toggle */}
-
-
-                {/* Excluded Exercises Button */}
-                <div className="flex items-center justify-between border-t border-slate-700/50 pt-6">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-red-500/20 rounded-lg text-red-400">
-                            <MinusCircle size={20} />
-                        </div>
+                {/* EQUIPMENT TAB */}
+                {activeTab === 'equipment' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div>
-                            <div className="font-medium text-white">Excluded Exercises</div>
-                            <div className="text-xs text-slate-400">{excludedExercises.length} exercises banned</div>
+                            <h2 className="text-xl font-bold text-white mb-4">Main Equipment</h2>
+                            <div className="grid grid-cols-2 gap-3">
+                                {EQUIPMENT_OPTIONS.map(eq => (
+                                    <button
+                                        key={eq}
+                                        onClick={() => updateEquipment(eq)}
+                                        className={`p-3 rounded-xl border text-left transition-all ${equipment === eq
+                                                ? 'bg-blue-500/20 border-blue-500 text-blue-400 font-bold'
+                                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                                            }`}
+                                    >
+                                        {eq}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-4 leading-relaxed">
+                                Select your primary available equipment. For more complex setups, use the "Customize" button on the workout page.
+                            </p>
                         </div>
-                    </div>
-                    <button
-                        onClick={() => setShowExcludedModal(true)}
-                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors"
-                    >
-                        Manage List
-                    </button>
-                </div>
-            </div>
 
-
-
-            {/* Available Exercises Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
-                        <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50 rounded-t-2xl">
-                            <h3 className="text-lg font-bold text-white">Available Exercises ({filteredExercises.length})</h3>
-                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                            {filteredExercises.map((ex, i) => (
-                                <div key={i} className="flex items-center gap-4 bg-slate-800/30 p-3 rounded-xl border border-slate-700/30">
-                                    <img
-                                        src={ex.gifUrl}
-                                        alt={ex.name}
-                                        className="w-12 h-12 rounded-lg object-cover bg-slate-700"
-                                        loading="lazy"
-                                    />
-                                    <div>
-                                        <div className="font-medium text-white">{ex.name}</div>
-                                        <div className="text-xs text-slate-400">{ex.muscleGroup} • {ex.equipment}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Excluded Exercises Modal */}
-            {showExcludedModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
-                        <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50 rounded-t-2xl">
-                            <h3 className="text-lg font-bold text-white">Excluded Exercises</h3>
-                            <button onClick={() => setShowExcludedModal(false)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                            {excludedExercises.length === 0 ? (
-                                <div className="text-center text-slate-500 py-8">
-                                    No excluded exercises.
-                                </div>
-                            ) : (
-                                excludedExercises.map(ex => (
-                                    <div key={ex} className="flex items-center justify-between bg-slate-800/30 p-3 rounded-xl border border-slate-700/30">
-                                        <span className="text-slate-300 font-medium">{ex}</span>
-                                        <button
-                                            onClick={() => restoreExercise(ex)}
-                                            className="text-xs bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-lg hover:bg-blue-500/20 transition-colors"
-                                        >
-                                            Restore
-                                        </button>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* History Details Modal */}
-            {viewingHistoryItem && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
-                        <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/50 rounded-t-2xl">
-                            <div>
-                                <h3 className="text-lg font-bold text-white">{viewingHistoryItem.split || 'Workout'}</h3>
-                                <div className="text-xs text-slate-400">
-                                    {new Date(viewingHistoryItem.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                        {excludedExercises.length > 0 && (
+                            <div className="pt-6 border-t border-slate-700/50">
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Excluded Exercises</h3>
+                                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                                    {excludedExercises.map(ex => (
+                                        <div key={ex} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                                            <span className="text-slate-300 text-sm">{ex}</span>
+                                            <button
+                                                onClick={() => restoreExercise(ex)}
+                                                className="text-emerald-400 text-xs font-bold hover:text-emerald-300"
+                                            >
+                                                RESTORE
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                            <button onClick={() => setViewingHistoryItem(null)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white">
-                                <X size={20} />
-                            </button>
+                        )}
+                    </div>
+                )}
+
+                {/* FAVORITES TAB */}
+                {activeTab === 'favorites' && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="flex justify-between items-center mb-2">
+                            <h2 className="text-xl font-bold text-white">Your Favorites</h2>
+                            <span className="text-xs text-slate-500 font-medium">{favorites.length} items</span>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                            {viewingHistoryItem.exercises.map((ex, i) => (
-                                <div key={i} className="flex items-center gap-4 bg-slate-800/30 p-3 rounded-xl border border-slate-700/30">
-                                    <div className="w-10 h-10 rounded-lg bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-500 font-bold text-sm overflow-hidden border border-slate-700">
-                                        {ex.gifUrl ? (
-                                            <img src={ex.gifUrl} alt={ex.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <span>{i + 1}</span>
-                                        )}
+
+                        {favorites.length === 0 ? (
+                            <div className="text-center py-12 text-slate-500 bg-slate-900/30 rounded-xl border border-dashed border-slate-700">
+                                <Star className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                <p className="font-medium">No favorites yet.</p>
+                                <p className="text-sm mt-1">Tap the star icon on any exercise to add it here.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                                {favorites.map(fav => (
+                                    <div key={fav} className="flex items-center justify-between p-3 bg-slate-800/80 rounded-lg border border-slate-700 group hover:border-slate-600 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 shrink-0" />
+                                            <span className="text-slate-200 font-medium text-sm">{fav}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => toggleFavorite(fav)}
+                                            className="p-2 text-slate-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                            title="Remove Favorite"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* CUSTOM EXERCISES TAB */}
+                {activeTab === 'custom' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4">Create New Exercise</h3>
+                            <div className="space-y-3">
+                                <div>
+                                    <input
+                                        type="text"
+                                        value={newExercise.name}
+                                        onChange={e => setNewExercise({ ...newExercise, name: e.target.value })}
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
+                                        placeholder="Exercise Name (e.g. Diamond Pushups)"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <select
+                                            value={newExercise.muscleGroup}
+                                            onChange={e => setNewExercise({ ...newExercise, muscleGroup: e.target.value })}
+                                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
+                                        >
+                                            {['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full Body'].map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div>
-                                        <div className="font-medium text-white">{ex.name}</div>
-                                        <div className="text-xs text-slate-400">{ex.muscleGroup}</div>
+                                        <select
+                                            value={newExercise.equipment}
+                                            onChange={e => setNewExercise({ ...newExercise, equipment: e.target.value })}
+                                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
+                                        >
+                                            {EQUIPMENT_OPTIONS.map(eq => (
+                                                <option key={eq} value={eq}>{eq}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
-                            ))}
+                                <button
+                                    onClick={handleAddCustom}
+                                    disabled={!newExercise.name}
+                                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg mt-2 flex items-center justify-center gap-2 text-sm transition-colors"
+                                >
+                                    <Plus size={16} /> Add to Library
+                                </button>
+                            </div>
                         </div>
+
+                        {customExercises.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Your Library</h3>
+                                <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                                    {customExercises.map(ex => (
+                                        <div key={ex.id || ex.name} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700/50 group">
+                                            <div>
+                                                <div className="text-slate-200 font-bold text-sm">{ex.name}</div>
+                                                <div className="text-xs text-slate-500">{ex.muscleGroup} • {ex.equipment}</div>
+                                            </div>
+                                            <button
+                                                onClick={() => deleteCustomExercise(ex.name)}
+                                                className="text-slate-600 hover:text-red-400 p-2 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
+
+            <div className="text-center text-xs text-slate-600 font-medium">
+                v1.2.0 • Data auto-synced
+            </div>
         </div>
     );
 };

@@ -18,7 +18,7 @@ const BASE_MOVEMENTS = [
     { name: 'Overhead Press', category: 'Push', muscles: 'Shoulders', equipment: ['Barbell', 'Dumbbells', 'Kettlebell', 'Machine', 'Smith Machine', 'Bands', 'Plate'] },
     { name: 'Arnold Press', category: 'Push', muscles: 'Shoulders', equipment: ['Dumbbells', 'Kettlebell'] },
     { name: 'Push-ups', category: 'Push', muscles: 'Chest', equipment: ['Bodyweight', 'Bands', 'Weighted Vest', 'Decline', 'Incline'] },
-    { name: 'Dips', category: 'Push', muscles: 'Triceps', equipment: ['Bodyweight', 'Weighted', 'Machine', 'Dip Station', 'Bench'] },
+    { name: 'Dips', category: 'Push', muscles: 'Triceps', equipment: ['Weighted', 'Machine', 'Dip Station', 'Bench'] },
     { name: 'Chest Flys', category: 'Push', muscles: 'Chest', equipment: ['Dumbbells', 'Cables', 'Machine', 'Bands', 'Pec Deck'] },
     { name: 'Lateral Raises', category: 'Push', muscles: 'Shoulders', equipment: ['Dumbbells', 'Cables', 'Bands', 'Machine', 'Plate', 'Kettlebell'] },
     { name: 'Front Raises', category: 'Push', muscles: 'Shoulders', equipment: ['Dumbbells', 'Barbell', 'Plate', 'Cables', 'Bands', 'Kettlebell'] },
@@ -46,7 +46,7 @@ const BASE_MOVEMENTS = [
     { name: 'Single Arm Row', category: 'Pull', muscles: 'Back', equipment: ['Dumbbells', 'Kettlebell', 'Cable', 'Machine'] },
     { name: 'Pullover', category: 'Pull', muscles: 'Back', equipment: ['Dumbbell', 'Barbell', 'Cable', 'Machine'] },
     { name: 'Good Mornings', category: 'Pull', muscles: 'Back', equipment: ['Barbell', 'Bands', 'Smith Machine'] },
-    { name: 'Hyperextensions', category: 'Pull', muscles: 'Back', equipment: ['Bodyweight', 'Weighted', 'Machine'] },
+    { name: 'Hyperextensions', category: 'Pull', muscles: 'Back', equipment: ['Weighted', 'Machine'] },
 
     // LEGS (Quads, Hamstrings, Glutes, Calves)
     { name: 'Squat', category: 'Legs', muscles: 'Quads', equipment: ['Barbell', 'Dumbbells', 'Kettlebell', 'Smith Machine', 'Bodyweight', 'Bands', 'Safety Bar'] },
@@ -55,7 +55,7 @@ const BASE_MOVEMENTS = [
     { name: 'Reverse Lunges', category: 'Legs', muscles: 'Legs', equipment: ['Bodyweight', 'Dumbbells', 'Barbell', 'Kettlebell', 'Smith Machine'] },
     { name: 'Side Lunges', category: 'Legs', muscles: 'Legs', equipment: ['Bodyweight', 'Dumbbells', 'Kettlebell'] },
     { name: 'Bulgarian Split Squat', category: 'Legs', muscles: 'Legs', equipment: ['Bodyweight', 'Dumbbells', 'Barbell', 'Kettlebell', 'Smith Machine'] },
-    { name: 'Step-ups', category: 'Legs', muscles: 'Legs', equipment: ['Bodyweight', 'Dumbbells', 'Barbell', 'Kettlebell', 'Box'] },
+    { name: 'Step-ups', category: 'Legs', muscles: 'Legs', equipment: ['Dumbbells', 'Barbell', 'Kettlebell', 'Box'] },
     { name: 'Leg Press', category: 'Legs', muscles: 'Legs', equipment: ['Machine'] },
     { name: 'Hack Squat', category: 'Legs', muscles: 'Quads', equipment: ['Machine', 'Barbell'] },
     { name: 'Leg Extensions', category: 'Legs', muscles: 'Quads', equipment: ['Machine', 'Bands'] },

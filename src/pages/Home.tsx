@@ -4,6 +4,8 @@ import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Brain } from 'lu
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { triggerConfetti } from '../utils/confetti';
 
+import { CustomizeWorkoutModal } from '../components/CustomizeWorkoutModal';
+
 export const Home: React.FC = () => {
     const {
         dailyWorkout,
@@ -15,9 +17,13 @@ export const Home: React.FC = () => {
         reorderWorkout,
         toggleExerciseCompletion,
         focusArea,
-        setFocusArea
+        setFocusArea,
+        customWorkoutActive,
+        customTargets,
+        clearCustomWorkout
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
+    const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
 
     // Removed handleComplete as we now auto-log via state
 
@@ -69,6 +75,13 @@ export const Home: React.FC = () => {
     // AI Summary Generator (Strategy & Tactics)
     const getAISummary = () => {
         if (dailyWorkout.length === 0) return "Add equipment to generate a workout plan.";
+
+        // Special handling for Custom Workouts
+        if (customWorkoutActive && customTargets.length > 0) {
+            const targetsStr = customTargets.join(' & ');
+            const summary = `You've configured a custom session targeting **${targetsStr}**. Focus on maintaining intensity across these specific areas. Since this is a custom mix, pay extra attention to your recovery between sets.`;
+            return summary;
+        }
 
         const focus = focusArea === 'Default' ? currentSplit : focusArea;
 
@@ -130,6 +143,8 @@ export const Home: React.FC = () => {
 
     return (
         <div className="relative">
+            <CustomizeWorkoutModal isOpen={isCustomizeOpen} onClose={() => setIsCustomizeOpen(false)} />
+
             {/* Image Preview Modal */}
             <AnimatePresence>
                 {previewImage && (
@@ -186,16 +201,31 @@ export const Home: React.FC = () => {
                 <div className="flex justify-between items-end">
                     <div>
                         <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-1">
-                            Today's Focus: <span className="text-white font-bold">{currentSplit}</span>
+                            Today's Focus: <span className="text-white font-bold">
+                                {customWorkoutActive ? 'Custom Mix' : currentSplit}
+                            </span>
                         </h2>
                         <h3 className="text-2xl font-bold text-white">
                             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </h3>
                     </div>
                     <div className="flex gap-2">
+                        {/* Customize Button */}
+                        <button
+                            onClick={() => setIsCustomizeOpen(true)}
+                            className={`p-2 transition-colors rounded-lg border ${customWorkoutActive ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+                            title="Customize Workout"
+                        >
+                            <Brain size={20} />
+                        </button>
+
                         <select
-                            value={focusArea}
-                            onChange={(e) => setFocusArea(e.target.value)}
+                            value={customWorkoutActive ? 'Custom' : focusArea}
+                            onChange={(e) => {
+                                if (e.target.value === 'Custom') return; // Don't do anything, button handles it
+                                if (customWorkoutActive) clearCustomWorkout(); // Clear custom if they pick dropdown
+                                setFocusArea(e.target.value);
+                            }}
                             className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
                         >
                             <option value="Default">Standard Split</option>
@@ -205,6 +235,7 @@ export const Home: React.FC = () => {
                             <option value="Shoulders">Focus: Shoulders</option>
                             <option value="Arms">Focus: Arms</option>
                             <option value="Bodyweight">Focus: Bodyweight / Travel</option>
+                            {customWorkoutActive && <option value="Custom">Custom Selection</option>}
                         </select>
                         <button
                             onClick={refreshWorkout}
@@ -260,6 +291,37 @@ export const Home: React.FC = () => {
 // Extracted component for Drag Controls
 const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, replaceExercise, excludeExercise }: any) => {
     const controls = useDragControls();
+    const { favorites, toggleFavorite } = useWorkout(); // Use hook directly for cleaner prop drilling
+    const timeoutRef = React.useRef<any>(null);
+
+    const isFavorite = favorites.includes(exercise.name);
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        // Prevent default browser behavior (scrolling) only if we decide to drag?
+        // Actually, with touch-none, scrolling is disabled on the handle anyway.
+        // But to allow scrolling if they just brush it, we might want to remove touch-none?
+        // For now, adhering to "long press to reorder".
+        // Use e.persist() or capture event properties if needed, but synchronous start is best?
+        // Note: Framer Motion controls.start(e) typically needs to be called synchronously on PointerDown
+        // for some browsers constraints, but let's try the timeout.
+
+        // Actually, passing the event async works in most modern React/Framer versions as long as the event object exists.
+        // We persist the event just in case (though React 17+ doesn't pool).
+
+        timeoutRef.current = setTimeout(() => {
+            controls.start(e);
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(50); // Haptic feedback
+            }
+        }, 300); // 300ms hold
+    };
+
+    const handlePointerUp = () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+    };
 
     return (
         <Reorder.Item
@@ -270,15 +332,39 @@ const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, rep
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, x: -20 }}
             className="relative"
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
         >
             <div className={`glass-card p-4 flex items-center gap-4 group transition-all ${exercise.completed ? 'opacity-60 bg-slate-900/50' : ''}`}>
-                {/* Drag Handle - ONLY this triggers drag */}
+                {/* Drag Handle - ONLY this triggers drag (Long Press) */}
                 <div
-                    className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400 p-2 -ml-2 touch-none"
-                    onPointerDown={(e) => controls.start(e)}
+                    className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400 p-2 -ml-2 touch-none select-none"
+                    onPointerDown={handlePointerDown}
                 >
                     <GripVertical size={20} />
                 </div>
+
+                {/* Favorite Toggle */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(exercise.name);
+                    }}
+                    className={`p-2 transition-colors ${isFavorite ? 'text-yellow-400' : 'text-slate-700 hover:text-yellow-400/50'}`}
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill={isFavorite ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="w-5 h-5"
+                    >
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                </button>
 
                 {/* Image */}
                 <div
