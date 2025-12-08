@@ -29,8 +29,8 @@ interface WorkoutState {
     focusArea: string; // 'Default', 'Chest', 'Back', etc.
     excludedExercises: string[];
     connectionStatus: 'connected' | 'disconnected' | 'checking';
-    connectionError: string | null;
-    lastSyncTime: string | null;
+    connectionError?: string;
+    lastSyncTime?: string | null;
     customWorkoutActive: boolean;
     customTargets: string[];
     customEquipment: string[];
@@ -38,6 +38,7 @@ interface WorkoutState {
     customExercises: Exercise[];
     userEquipmentProfile: string;
     availableExerciseNames: string[]; // Whitelist of valid exercises based on profile
+    openaiApiKey: string;
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -58,6 +59,7 @@ interface WorkoutContextType extends WorkoutState {
     addCustomExercise: (prompt: string) => Promise<Exercise>;
     deleteCustomExercise: (exerciseName: string) => void;
     updateUserEquipmentProfile: (profile: string) => Promise<void>;
+    setOpenaiApiKey: (key: string) => void;
     // ...
 }
 
@@ -66,6 +68,28 @@ import { BASE_MOVEMENTS } from '../data/exercises';
 import { SmartParser } from '../utils/smartParser';
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
+
+const initialState: WorkoutState = {
+    equipment: '',
+    dailyWorkout: [],
+    lastWorkoutDate: null,
+    history: [],
+    completedToday: false,
+    currentSplit: 'Push',
+    focusArea: 'Default',
+    excludedExercises: [],
+    connectionStatus: 'checking',
+    connectionError: null,
+    lastSyncTime: null,
+    customWorkoutActive: false,
+    customTargets: [],
+    customEquipment: [],
+    favorites: [],
+    customExercises: [],
+    userEquipmentProfile: '',
+    availableExerciseNames: [],
+    openaiApiKey: localStorage.getItem('openai_api_key') || ''
+};
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [state, setState] = useState<WorkoutState>(initialState);
@@ -310,7 +334,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // Added: favorites, user_equipment_profile, custom_exercises
                 const { data: settingsData } = await supabase
                     .from('user_settings')
-                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises')
+                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key')
                     .eq('id', userId)
                     .single();
 
@@ -326,7 +350,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
                     const newFavorites = settingsData?.favorites || prev.favorites || [];
                     const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
+                    const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
                     const newCustom = settingsData?.custom_exercises || prev.customExercises || [];
+                    const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey; // Removed localStorage fallback
 
                     // Restore full state
                     const newSplit = settingsData?.current_split || prev.currentSplit;
@@ -365,7 +391,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         focusArea: newFocusArea,
                         history: cloudHistory.length > 0 ? cloudHistory : prev.history,
                         connectionStatus: 'connected',
-                        lastSyncTime: new Date().toLocaleTimeString()
+                        lastSyncTime: new Date().toLocaleTimeString(),
+                        openaiApiKey: newApiKey
                     };
                 });
 
@@ -412,6 +439,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     last_workout_date: state.lastWorkoutDate,
                     completed_today: state.completedToday,
                     focus_area: state.focusArea,
+                    focus_area: state.focusArea,
+                    openai_api_key: state.openaiApiKey,
                     updated_at: new Date().toISOString()
                 });
 
@@ -421,7 +450,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Debounce or just run?
         const timeout = setTimeout(syncToCloud, 2000);
         return () => clearTimeout(timeout);
-    }, [state.equipment, state.excludedExercises, state.favorites, state.userEquipmentProfile, state.customExercises, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday, state.focusArea]); // Sync on ANY state change
+    }, [state.equipment, state.excludedExercises, state.favorites, state.userEquipmentProfile, state.customExercises, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday, state.focusArea, state.openaiApiKey]); // Sync on ANY state change
 
     // Generate workout if needed
     useEffect(() => {
@@ -576,7 +605,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const generateWorkout = async (splitOverride?: string, focusOverride?: string) => {
         const splitToUse = splitOverride || state.currentSplit;
         const focusToUse = focusOverride || state.focusArea;
-        const apiKey = localStorage.getItem('openai_api_key');
+        const apiKey = state.openaiApiKey;
 
         // --- AI GENERATION MODE ---
         if (apiKey && state.userEquipmentProfile) {
@@ -592,11 +621,21 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // Ensure custom exercises are in the whitelist
                 whitelist = [...new Set([...whitelist, ...customNames])];
 
+                // If whitelist is empty despite profile, try to generate it on the fly
+                if (whitelist.length === 0 && state.userEquipmentProfile) {
+                    const generatedWhitelist = await SmartParser.filterExercisesByProfile(state.openaiApiKey, state.userEquipmentProfile, allExercises);
+                    if (generatedWhitelist.length > 0) {
+                        whitelist = generatedWhitelist;
+                        setState(prev => ({ ...prev, availableExerciseNames: whitelist }));
+                    }
+                }
+
                 const aiPlan = await SmartParser.generateAIWorkout(
+                    state.openaiApiKey,
                     splitToUse,
                     focusToUse,
                     state.userEquipmentProfile,
-                    whitelist,
+                    whitelist.length > 0 ? whitelist : allExercises.map(e => e.name), // Fallback to all if whitelist fails
                     state.favorites // PASS FAVORITES
                 );
 
@@ -1054,7 +1093,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const addCustomExercise = async (prompt: string) => {
         console.log('Creating Custom Exercise from:', prompt);
         try {
-            const newEx = await SmartParser.createExerciseFromPrompt(prompt);
+            const newEx = await SmartParser.createExerciseFromPrompt(state.openaiApiKey, prompt);
 
             // Assign ID
             const exObj: Exercise = {
@@ -1116,7 +1155,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
 
         // 2. Call AI/Parser to get Whitelist
-        const whitelist = await SmartParser.filterExercisesByProfile(profile, allExercises);
+        const whitelist = await SmartParser.filterExercisesByProfile(state.openaiApiKey, profile, allExercises);
         console.log(`AI Whitelist Generated: ${whitelist.length} exercises valid.`);
 
         // 3. Update Whitelist State
@@ -1125,6 +1164,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 4. Regenerate Workout with new pool
         // setTimeout(() => generateWorkout(state.currentSplit), 100);
+    };
+
+    const setOpenaiApiKey = (key: string) => {
+        setState(prev => ({ ...prev, openaiApiKey: key }));
+        localStorage.setItem('openai_api_key', key); // Keep local backup
     };
 
     const value = {
@@ -1145,7 +1189,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleFavorite,
         addCustomExercise,
         deleteCustomExercise,
-        updateUserEquipmentProfile
+        updateUserEquipmentProfile,
+        setOpenaiApiKey
     };
 
     return (

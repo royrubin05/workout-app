@@ -17,15 +17,22 @@ export const Settings: React.FC = () => {
         customExercises,
         addCustomExercise,
         deleteCustomExercise,
-        connectionStatus,
-        updateUserEquipmentProfile
+        updateUserEquipmentProfile,
+        openaiApiKey,
+        setOpenaiApiKey,
+        connectionStatus
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
     const [showUpcomingModal, setShowUpcomingModal] = useState(false);
     const [selectedFavorite, setSelectedFavorite] = useState<string | null>(null);
-    const [apiKey, setApiKey] = useState(localStorage.getItem('openai_api_key') || '');
+    const [apiKey, setApiKey] = useState(openaiApiKey || '');
     const [showKeyInput, setShowKeyInput] = useState(false);
+
+    // Update local key state when context updates (e.g. from cloud load)
+    React.useEffect(() => {
+        if (openaiApiKey) setApiKey(openaiApiKey);
+    }, [openaiApiKey]);
 
     // UI State for Profile Init
     const [localProfile, setLocalProfile] = useState('');
@@ -41,8 +48,7 @@ export const Settings: React.FC = () => {
     // Save API Key
     const handleSaveKey = (key: string) => {
         setApiKey(key);
-        localStorage.setItem('openai_api_key', key);
-        // Also update the parser instance if needed, or parser reads from localStorage directly
+        setOpenaiApiKey(key);
     };
 
     // Custom Exercise Form State
@@ -146,8 +152,8 @@ export const Settings: React.FC = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id
-                                ? 'bg-slate-800 text-white shadow-sm'
-                                : 'text-slate-500 hover:text-slate-300'
+                            ? 'bg-slate-800 text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-300'
                             }`}
                     >
                         <tab.icon size={16} className={activeTab === tab.id ? 'text-blue-400' : ''} />
@@ -191,7 +197,7 @@ export const Settings: React.FC = () => {
                                     }}
                                     disabled={isScanning || !apiKey}
                                     className={`px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${!apiKey ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :
-                                            isScanning ? 'bg-indigo-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'
+                                        isScanning ? 'bg-indigo-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20'
                                         }`}
                                 >
                                     {isScanning ? (

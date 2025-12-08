@@ -27,8 +27,7 @@ const KEYWORDS = {
 /**
  * Helper to call OpenAI API
  */
-const callOpenAI = async (systemPrompt: string, userPrompt: string): Promise<string | null> => {
-    const apiKey = localStorage.getItem('openai_api_key');
+const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: string): Promise<string | null> => {
     if (!apiKey) return null;
 
     try {
@@ -60,9 +59,10 @@ export const SmartParser = {
     /**
      * Guesses the properties of an exercise based on its name.
      */
-    classifyExercise: async (name: string) => {
+    classifyExercise: async (apiKey: string, name: string) => {
         // Try AI First
         const aiResponse = await callOpenAI(
+            apiKey,
             `You are a fitness expert. Classify the exercise provided into JSON format: { "muscleGroup": "Chest"|"Back"|"Legs"|"Shoulders"|"Biceps"|"Triceps"|"Abs"|"Full Body", "category": "Push"|"Pull"|"Legs"|"Core"|"Full Body", "equipment": "Barbell"|"Dumbbells"|"Bodyweight"|"Machine"|"Cables"|"Bands"|"Kettlebell" }. Only return JSON.`,
             `Exercise: ${name}`
         );
@@ -143,7 +143,7 @@ export const SmartParser = {
      * Filters the ENTIRE exercise list based on the user's equipment profile.
      * Returns a list of exercise names that are performable.
      */
-    filterExercisesByProfile: async (profile: string, allExercises: { name: string, equipment: string | string[] }[]): Promise<string[]> => {
+    filterExercisesByProfile: async (apiKey: string, profile: string, allExercises: { name: string, equipment: string | string[] }[]): Promise<string[]> => {
         // 1. Try AI First
         const exerciseList = allExercises.map(e => e.name).join(', ');
         const prompt = `
@@ -161,6 +161,7 @@ export const SmartParser = {
         `;
 
         const aiResponse = await callOpenAI(
+            apiKey,
             `You are a strict fitness equipment auditor. Return JSON array of valid exercise names.`,
             prompt
         );
@@ -210,6 +211,7 @@ export const SmartParser = {
      * Generates a full workout routine using AI.
      */
     generateAIWorkout: async (
+        apiKey: string,
         split: string,
         focusArea: string,
         equipmentProfile: string,
@@ -236,7 +238,7 @@ export const SmartParser = {
         Output format: [{"name": "Bench Press", "sets": "4", "reps": "5-8", "note": "Explode up"}]
         `;
 
-        const response = await callOpenAI("You are a world-class program designer. Return ONLY JSON.", prompt);
+        const response = await callOpenAI(apiKey, "You are a world-class program designer. Return ONLY JSON.", prompt);
 
         if (response) {
             try {
@@ -255,7 +257,7 @@ export const SmartParser = {
      * Creates a NEW Exercise object from a natural language prompt.
      * Guaranteed to return a valid object for the DB.
      */
-    createExerciseFromPrompt: async (prompt: string): Promise<{ name: string, muscleGroup: string, category: string, equipment: string, description: string }> => {
+    createExerciseFromPrompt: async (apiKey: string, prompt: string): Promise<{ name: string, muscleGroup: string, category: string, equipment: string, description: string }> => {
         const query = `
         User wants to create a new exercise: "${prompt}"
         
@@ -267,7 +269,7 @@ export const SmartParser = {
         - description: A 1-sentence form cue.
         `;
 
-        const response = await callOpenAI("You are a fitness data expert.", query);
+        const response = await callOpenAI(apiKey, "You are a fitness data expert.", query);
 
         if (response) {
             try {
