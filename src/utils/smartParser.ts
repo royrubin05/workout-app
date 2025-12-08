@@ -280,6 +280,27 @@ export const SmartParser = {
 
         if (response) {
             try {
-            };
+                const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(jsonStr);
+                return {
+                    name: parsed.name || prompt,
+                    muscleGroup: parsed.muscleGroup || 'Full Body',
+                    category: parsed.category || 'Full Body',
+                    equipment: parsed.equipment || 'Bodyweight',
+                    description: parsed.description || 'Custom Exercise'
+                };
+            } catch (e) {
+                console.error("AI Create Error", e);
+            }
         }
-    };
+
+        // Fallback
+        return {
+            name: prompt,
+            muscleGroup: 'Full Body',
+            category: 'Full Body',
+            equipment: 'Bodyweight',
+            description: 'Custom Created Exercise'
+        };
+    }
+};

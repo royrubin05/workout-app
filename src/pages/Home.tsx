@@ -20,7 +20,6 @@ export const Home: React.FC = () => {
         customWorkoutActive,
         customTargets,
         clearCustomWorkout,
-        clearCustomWorkout,
         strategyInsight // Get strategy
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
