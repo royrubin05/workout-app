@@ -212,6 +212,9 @@ export const Home: React.FC = () => {
                 <p>With Images: {allExercises.filter((e: any) => e.gifUrl).length}</p>
                 <p>Sample (first): {JSON.stringify(allExercises[0] || {}, null, 2)}</p>
                 <p>Sample with Img: {JSON.stringify(allExercises.find((e: any) => e.gifUrl) || 'None found', null, 2)}</p>
+                <p>--- EXPERIMENT ---</p>
+                <p>Daily Workout Count: {dailyWorkout.length}</p>
+                <p>Daily Workout Sample: {JSON.stringify(dailyWorkout[0] || {}, null, 2)}</p>
             </div>
         </div >
     );
