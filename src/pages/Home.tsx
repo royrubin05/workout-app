@@ -266,7 +266,7 @@ const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, rep
                     <GripVertical size={16} className="text-slate-600" />
                 </div>
 
-                <div className="flex items-center gap-4 pl-8 flex-1">
+                <div className="flex items-center gap-4 pl-16 flex-1">
                     <button
                         onClick={() => toggleExerciseCompletion(exercise.id)}
                         className={`shrink-0 transition-colors ${exercise.completed ? 'text-emerald-500' : 'text-slate-600 hover:text-slate-400'}`}

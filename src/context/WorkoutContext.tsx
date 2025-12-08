@@ -449,7 +449,22 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Debounce or just run?
         const timeout = setTimeout(syncToCloud, 2000);
         return () => clearTimeout(timeout);
-    }, [state.equipment, state.excludedExercises, state.favorites, state.userEquipmentProfile, state.customExercises, state.currentSplit, state.dailyWorkout, state.lastWorkoutDate, state.completedToday, state.focusArea, state.openaiApiKey]); // Sync on ANY state change
+    }, [
+        state.equipment,
+        state.excludedExercises,
+        state.favorites,
+        state.userEquipmentProfile,
+        state.customExercises,
+        state.currentSplit,
+        state.dailyWorkout,
+        state.lastWorkoutDate,
+        state.completedToday,
+        state.focusArea,
+        state.openaiApiKey, // Ensure API Key changes trigger sync
+        isLoaded,
+        state.connectionStatus
+    ]);
+
 
     // Generate workout if needed
     useEffect(() => {
@@ -645,39 +660,56 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     // Map AI plan to Exercise objects
                     const mappedWorkout: WorkoutExercise[] = aiPlan.map((step, idx) => {
                         // Find matching DB exercise (Standard OR Custom)
-                        // IMPROVED MATCHING:
-                        // 1. Exact match (case insensitive)
-                        // 2. DB name includes AI name
-                        // 3. AI name includes DB name (if DB name > 3 chars)
                         const allPool = [...allExercises, ...state.customExercises];
 
-                        let existing = allPool.find(ex => ex.name.toLowerCase() === step.name.toLowerCase());
+                        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+                        const stepNorm = normalize(step.name);
+
+                        // 1. Exact Match (Normalized)
+                        let existing = allPool.find(ex => normalize(ex.name) === stepNorm);
+
+                        // 2. Contains (Bidirectional)
                         if (!existing) {
-                            existing = allPool.find(ex => ex.name.toLowerCase().includes(step.name.toLowerCase()));
+                            existing = allPool.find(ex => {
+                                const exNorm = normalize(ex.name);
+                                return exNorm.includes(stepNorm) || stepNorm.includes(exNorm);
+                            });
                         }
 
-                        if (!existing && step.name.length > 3) {
-                            existing = allPool.find(ex => step.name.toLowerCase().includes(ex.name.toLowerCase()));
+                        // 3. Last Resort: Word Intersection (Best match)
+                        if (!existing) {
+                            // Find exercise with most matching words
+                            const stepWords = step.name.toLowerCase().split(' ');
+                            let bestMatch: Exercise | undefined;
+                            let maxMatches = 0;
+
+                            allPool.forEach(ex => {
+                                const exWords = ex.name.toLowerCase().split(' ');
+                                const matches = stepWords.filter(w => w.length > 2 && exWords.includes(w)).length;
+                                if (matches > maxMatches && matches >= 2) { // At least 2 significant words match
+                                    maxMatches = matches;
+                                    bestMatch = ex;
+                                }
+                            });
+                            existing = bestMatch;
                         }
 
                         // Construct Exercise Object
                         return {
                             id: existing?.id || `ai-${idx}-${Date.now()}`,
-                            name: existing?.name || step.name,
+                            name: existing?.name || step.name, // Use DB name if found to match image!
                             category: (existing?.category || splitToUse) as any,
                             muscleGroup: existing?.muscleGroup || focusToUse,
                             equipment: existing?.equipment || 'Bodyweight',
-                            gifUrl: existing?.gifUrl,
+                            gifUrl: existing?.gifUrl, // Image should work now if matched
                             type: existing?.type || 'Isolation',
-                            // Store AI Sets/Reps/Notes in the exercise object for display if needed
                             sets: step.sets,
                             reps: step.reps,
                             notes: step.note,
                             completed: false
                         };
                     });
-
                     console.log('✅ AI Workout generated:', mappedWorkout.length);
                     setState(prev => ({
                         ...prev,
