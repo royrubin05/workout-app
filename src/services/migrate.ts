@@ -59,11 +59,17 @@ export const migrateExercises = async (force: boolean = false) => {
         }));
     }
 
+    // 2b. Deduplicate by ID to prevent constraint errors
+    const uniqueMap = new Map();
+    exercisesToInsert.forEach(ex => uniqueMap.set(ex.id, ex));
+    const uniqueExercises = Array.from(uniqueMap.values());
+    console.log(`Prepared ${uniqueExercises.length} unique exercises (deduplicated).`);
+
     // 3. Insert in Chunks (Supabase limit safety)
     const chunkSize = 100;
-    for (let i = 0; i < exercisesToInsert.length; i += chunkSize) {
-        const chunk = exercisesToInsert.slice(i, i + chunkSize);
-        const { error: insertError } = await supabase.from('exercises').insert(chunk);
+    for (let i = 0; i < uniqueExercises.length; i += chunkSize) {
+        const chunk = uniqueExercises.slice(i, i + chunkSize);
+        const { error: insertError } = await supabase.from('exercises').upsert(chunk, { onConflict: 'id' });
 
         if (insertError) {
             console.error('Migration Chunk Failed:', insertError);
