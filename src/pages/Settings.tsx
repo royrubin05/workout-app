@@ -3,6 +3,7 @@ import { useWorkout } from '../context/WorkoutContext';
 import { Trash2, Plus, Star, Dumbbell, CalendarDays, History } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
+import { SmartParser } from '../utils/smartParser';
 
 export const Settings: React.FC = () => {
     const {
@@ -20,6 +21,7 @@ export const Settings: React.FC = () => {
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
     const [showUpcomingModal, setShowUpcomingModal] = useState(false);
+    const [selectedFavorite, setSelectedFavorite] = useState<string | null>(null);
 
     // Custom Exercise Form State
     const [newExercise, setNewExercise] = useState({
@@ -106,6 +108,41 @@ export const Settings: React.FC = () => {
                 {/* EQUIPMENT TAB */}
                 {activeTab === 'equipment' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+
+                        {/* Smart AI Parser Input */}
+                        <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-indigo-500/30 p-4 rounded-xl">
+                            <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2 block">
+                                ✨ AI Equipment Scanner
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 'I have a home gym with dumbbells and a bench...'"
+                                    className="flex-1 bg-slate-900/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-indigo-200/30 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const text = e.currentTarget.value;
+                                            const detected = SmartParser.parseEquipmentPrompt(text);
+                                            if (detected.length > 0) {
+                                                // For now, we only support single Main Equipment in context
+                                                // So we pick the "best" one or the first one that isn't bodyweight?
+                                                // Heuristic: If they have Barbell, prioritize that.
+                                                const priority = ['Barbell', 'Dumbbells', 'Machine', 'Cables', 'Kettlebell'];
+                                                const best = priority.find(p => detected.includes(p)) || detected[0];
+                                                updateEquipment(best);
+                                                e.currentTarget.value = ''; // Clear
+                                                // Toast or feedback?
+                                                alert(`AI Detected: ${detected.join(', ')}. Setting main to: ${best}`);
+                                            }
+                                        }
+                                    }}
+                                />
+                            </div>
+                            <p className="text-[10px] text-indigo-300/60 mt-2">
+                                Type your setup and hit Enter. We'll set your main equipment automatically.
+                            </p>
+                        </div>
+
                         <div>
                             <h2 className="text-xl font-bold text-white mb-4">Main Equipment</h2>
                             <div className="grid grid-cols-2 gap-3">
@@ -165,13 +202,20 @@ export const Settings: React.FC = () => {
                         ) : (
                             <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
                                 {favorites.map(fav => (
-                                    <div key={fav} className="flex items-center justify-between p-3 bg-slate-800/80 rounded-lg border border-slate-700 group hover:border-slate-600 transition-colors">
+                                    <div
+                                        key={fav}
+                                        onClick={() => setSelectedFavorite(fav)}
+                                        className="flex items-center justify-between p-3 bg-slate-800/80 rounded-lg border border-slate-700 group hover:border-slate-600 transition-colors cursor-pointer"
+                                    >
                                         <div className="flex items-center gap-3">
                                             <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 shrink-0" />
                                             <span className="text-slate-200 font-medium text-sm">{fav}</span>
                                         </div>
                                         <button
-                                            onClick={() => toggleFavorite(fav)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleFavorite(fav);
+                                            }}
                                             className="p-2 text-slate-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                                             title="Remove Favorite"
                                         >
@@ -181,6 +225,46 @@ export const Settings: React.FC = () => {
                                 ))}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Favorite Details Modal */}
+                {selectedFavorite && (
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                        onClick={() => setSelectedFavorite(null)}
+                    >
+                        <div
+                            className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl relative"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="h-48 bg-slate-800 flex items-center justify-center relative">
+                                {/* Use parsed info or find in allExercises? For now just showing name since we have string favorite */}
+                                <div className="text-6xl">💪</div>
+                                <button
+                                    onClick={() => setSelectedFavorite(null)}
+                                    className="absolute top-4 right-4 p-2 bg-black/20 rounded-full text-white hover:bg-black/40"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="p-6">
+                                <h3 className="text-2xl font-bold text-white mb-2">{selectedFavorite}</h3>
+                                <div className="text-slate-400 text-sm mb-6">
+                                    Favorite Exercise
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        toggleFavorite(selectedFavorite);
+                                        setSelectedFavorite(null);
+                                    }}
+                                    className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl border border-red-500/20 flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <Trash2 size={18} />
+                                    Remove from Favorites
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -194,10 +278,29 @@ export const Settings: React.FC = () => {
                                     <input
                                         type="text"
                                         value={newExercise.name}
-                                        onChange={e => setNewExercise({ ...newExercise, name: e.target.value })}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setNewExercise(prev => ({ ...prev, name: val }));
+
+                                            // Real-time AI classification
+                                            if (val.length > 3) {
+                                                const guess = SmartParser.classifyExercise(val);
+                                                setNewExercise(prev => ({
+                                                    ...prev,
+                                                    name: val,
+                                                    muscleGroup: guess.muscleGroup,
+                                                    equipment: prev.equipment === 'Bodyweight' ? guess.equipment : prev.equipment // Only overwrite if bodyweight default? Or always? Let's be smart.
+                                                }));
+                                            }
+                                        }}
                                         className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
                                         placeholder="Exercise Name (e.g. Diamond Pushups)"
                                     />
+                                    {newExercise.name.length > 3 && (
+                                        <div className="text-[10px] text-blue-400 mt-1 flex items-center gap-1">
+                                            <span>✨ AI Classified: {newExercise.muscleGroup}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
@@ -258,8 +361,21 @@ export const Settings: React.FC = () => {
                 )}
             </div>
 
-            <div className="text-center text-xs text-slate-600 font-medium">
+            import {migrateExercises} from '../services/migrate';
+
+            // ... inside Settings component ...
+
+            <div className="text-center text-xs text-slate-600 font-medium pb-8">
                 v1.2.0 • Data auto-synced
+                <button
+                    onClick={async () => {
+                        const res = await migrateExercises();
+                        alert(res.message);
+                    }}
+                    className="block mx-auto mt-2 text-slate-800 hover:text-slate-600"
+                >
+                    Run DB Migration
+                </button>
             </div>
         </div>
     );
