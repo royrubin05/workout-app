@@ -276,7 +276,7 @@ const ExerciseItem = ({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, height: 0 }}
-                className={`relative overflow-hidden glass-card p-4 flex items-center justify-between group ${exercise.completed ? 'opacity-50 grayscale' : ''}`}
+                className={`relative glass-card p-4 flex items-center gap-4 group ${exercise.completed ? 'opacity-50 grayscale' : ''}`}
             >
                 {/* Drag Handle Area */}
                 <div
@@ -289,7 +289,7 @@ const ExerciseItem = ({
                     <GripVertical size={16} className="text-slate-600" />
                 </div>
 
-                <div className="flex items-center gap-4 flex-1">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
                     {/* Thumbnail - Bigger now (w-20) */}
                     <div onClick={() => setPreviewImage(exercise)} className="shrink-0 cursor-pointer relative group/thumb" title="Click to view instructions">
                         {exercise.gifUrl ? (
@@ -334,7 +334,7 @@ const ExerciseItem = ({
                 </div>
 
                 {/* Right Side Actions */}
-                <div className="flex items-center gap-2 pl-4 shrink-0 self-center">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
                     {/* Refresh / Swap */}
                     <button
                         onClick={(e) => { e.stopPropagation(); replaceExercise(exercise.name); }}
