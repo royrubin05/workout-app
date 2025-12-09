@@ -6,6 +6,7 @@ import confetti from 'canvas-confetti';
 
 import { CustomizeWorkoutModal } from '../components/CustomizeWorkoutModal';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
+import { FunLoader } from '../components/FunLoader';
 
 export const Home: React.FC = () => {
     const {
@@ -21,7 +22,8 @@ export const Home: React.FC = () => {
         customWorkoutActive,
         clearCustomWorkout,
         includeLegs,
-        openaiApiKey
+        openaiApiKey,
+        isGenerating
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
@@ -73,12 +75,16 @@ export const Home: React.FC = () => {
 
     // AI Summary logic replaced by strategyInsight from Context
 
-
+    // NEW: Fun Loader State
+    // isGenerating is now destructured from useWorkout()
 
     return (
         <div className="relative pb-24 px-4 pt-6 max-w-xl mx-auto space-y-6">
             <CustomizeWorkoutModal isOpen={isCustomizeOpen} onClose={() => setIsCustomizeOpen(false)} />
             <UpcomingWorkoutModal isOpen={false} onClose={() => { }} />
+
+            {/* GLOBAL FUN LOADER */}
+            <FunLoader visible={isGenerating} />
 
             {/* Image Preview Modal */}
             <AnimatePresence>
@@ -327,7 +333,7 @@ const ExerciseItem = ({
                 </div>
 
                 {/* Right Side Actions */}
-                <div className="flex items-center gap-1 pl-2">
+                <div className="flex items-center gap-2 pl-4 shrink-0 self-center">
                     {/* Refresh / Swap */}
                     <button
                         onClick={(e) => { e.stopPropagation(); replaceExercise(exercise.name); }}
@@ -358,13 +364,13 @@ const ExerciseItem = ({
                     {/* Complete Button - Main Action */}
                     <button
                         onClick={handleCompletion}
-                        className={`ml-2 p-3 rounded-full transition-all duration-300 ${exercise.completed
-                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                            : 'bg-slate-700 text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400'
+                        className={`p-2 rounded-full transition-all duration-300 border border-transparent ${exercise.completed
+                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                            : 'bg-white/5 text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30'
                             }`}
                         title={exercise.completed ? "Completed!" : "Mark as Complete"}
                     >
-                        {exercise.completed ? <CheckCircle2 size={24} strokeWidth={3} /> : <Circle size={24} strokeWidth={2} />}
+                        {exercise.completed ? <CheckCircle2 size={20} strokeWidth={3} /> : <Circle size={20} strokeWidth={2} />}
                     </button>
                 </div>
             </motion.div>

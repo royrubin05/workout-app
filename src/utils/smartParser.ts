@@ -16,7 +16,7 @@ const KEYWORDS = {
 
     // Equipment
     dumbbells: ['dumbbell', 'dumbell', 'db', 'weights', 'free weights'],
-    barbell: ['barbell', 'bar', 'bb', 'bench press station'],
+    barbell: ['barbell', 'bar', 'bb', 'bench press station'], // "bar" covers "bar bell" because it checks includes
     cables: ['cable', 'pulley', 'machine', 'tower'],
     bodyweight: ['body', 'calisthenic', 'no equipment', 'floor', 'mat'],
     machine: ['machine', 'hammer strength', 'smith'],
@@ -28,9 +28,13 @@ const KEYWORDS = {
  * Helper to call OpenAI API
  */
 const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: string): Promise<string | null> => {
-    if (!apiKey) return null;
+    if (!apiKey) {
+        console.warn("SmartParser: No API Key provided to callOpenAI");
+        return null;
+    }
 
     try {
+        console.log("SmartParser: Calling OpenAI with key length:", apiKey.length);
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -47,10 +51,16 @@ const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: stri
             })
         });
 
+        if (!res.ok) {
+            const errText = await res.text();
+            console.error('OpenAI API Error Status:', res.status, errText);
+            return null;
+        }
+
         const data = await res.json();
         return data.choices?.[0]?.message?.content || null;
     } catch (e) {
-        console.error('OpenAI Call Failed:', e);
+        console.error('OpenAI Network/Fetch Failed:', e);
         return null; // Fallback to regex
     }
 };
@@ -295,12 +305,14 @@ export const SmartParser = {
             }
         }
 
-        // Fallback
+        // Fallback: Smart Regex Guess
+        const guess = await SmartParser.classifyExercise("", prompt); // Passing empty key triggers fallback logic in classifyExercise
+
         return {
             name: prompt,
-            muscleGroup: 'Full Body',
-            category: 'Full Body',
-            equipment: 'Bodyweight',
+            muscleGroup: guess.muscleGroup,
+            category: guess.category,
+            equipment: guess.equipment,
             description: 'Custom Created Exercise'
         };
     }

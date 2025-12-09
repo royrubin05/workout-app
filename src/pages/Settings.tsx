@@ -3,7 +3,6 @@ import { useWorkout } from '../context/WorkoutContext';
 import { Dumbbell, Star, Plus, Trash2, CalendarDays, CheckCircle2, History as HistoryIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
-import { SmartParser } from '../utils/smartParser';
 import { migrateExercises } from '../services/migrate';
 
 export const Settings: React.FC = () => {
@@ -60,26 +59,8 @@ export const Settings: React.FC = () => {
         equipment: 'Bodyweight'
     });
     const [showSuccessModal, setShowSuccessModal] = React.useState(false); // Success modal state
+    const [customSuccessExercise, setCustomSuccessExercise] = useState<any>(null); // New state for modal data
 
-    const handleAddCustom = () => {
-        if (!newExercise.name) return;
-
-        const ex: any = {
-            id: `custom-${Date.now()}`,
-            name: newExercise.name,
-            muscleGroup: newExercise.muscleGroup,
-            equipment: newExercise.equipment,
-            type: 'Isolation', // Default
-            isCustom: true // Helper flag
-        };
-
-        addCustomExercise(ex);
-        setNewExercise({ ...newExercise, name: '' });
-    };
-
-    const EQUIPMENT_OPTIONS = [
-        'Bodyweight', 'Dumbbells', 'Barbell', 'Cables', 'Machine', 'Kettlebell', 'Bands'
-    ];
 
     return (
         <div className="min-h-screen pb-24 px-4 pt-6 max-w-xl mx-auto space-y-6">
@@ -104,6 +85,42 @@ export const Settings: React.FC = () => {
                             <button
                                 onClick={() => setShowSuccessModal(false)}
                                 className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-colors"
+                            >
+                                Awesome
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* CUSTOM SUCCESS MODAL */}
+            {customSuccessExercise && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setCustomSuccessExercise(null)}
+                >
+                    <div
+                        className="bg-slate-900 border border-blue-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4 text-blue-400 text-3xl">
+                                {customSuccessExercise.muscleGroup === 'Legs' ? '🦵' :
+                                    customSuccessExercise.muscleGroup === 'Chest' ? '👕' :
+                                        customSuccessExercise.muscleGroup === 'Back' ? '🎒' :
+                                            customSuccessExercise.muscleGroup === 'Arms' ? '💪' : '✨'}
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">{customSuccessExercise.name}</h3>
+                            <div className="flex gap-2 mb-6">
+                                <span className="text-xs font-bold px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                    {customSuccessExercise.muscleGroup}
+                                </span>
+                                <span className="text-xs font-bold px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                    {customSuccessExercise.equipment}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => setCustomSuccessExercise(null)}
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors"
                             >
                                 Awesome
                             </button>
@@ -160,13 +177,48 @@ export const Settings: React.FC = () => {
                     <p className="text-xs text-slate-500 mt-2">
                         This key is stored securely on your device and synced to your private database.
                     </p>
-                    <div className="mt-4 pt-4 border-t border-slate-700/50">
+                    <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col gap-2">
+                        <button
+                            onClick={async () => {
+                                setIsScanning(true);
+                                try {
+                                    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${apiKey}`
+                                        },
+                                        body: JSON.stringify({
+                                            model: 'gpt-4o-mini',
+                                            messages: [{ role: 'user', content: 'Say "OK"' }],
+                                            max_tokens: 5
+                                        })
+                                    });
+
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        alert(`✅ Success! AI Responded: "${data.choices[0].message.content}"`);
+                                    } else {
+                                        const err = await res.text();
+                                        alert(`❌ API Error ${res.status}: ${err}`);
+                                    }
+                                } catch (e: any) {
+                                    alert(`❌ Network Error: ${e.message}`);
+                                } finally {
+                                    setIsScanning(false);
+                                }
+                            }}
+                            className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors"
+                        >
+                            {isScanning ? 'Testing...' : 'Test AI Connection'}
+                        </button>
+
                         <button
                             onClick={async () => {
                                 const result = await testPersistence();
                                 alert(result);
                             }}
-                            className="text-[10px] text-slate-500 hover:text-white underline"
+                            className="text-[10px] text-slate-500 hover:text-white underline text-center"
                         >
                             Debug: Test Database Persistence
                         </button>
@@ -210,26 +262,7 @@ export const Settings: React.FC = () => {
                 ))}
             </div>
 
-            {/* PREFERENCES SECTION */}
-            <div className="glass-card p-6 space-y-4">
-                <div className="flex items-center gap-3 mb-2">
-                    <Dumbbell className="text-blue-400" size={24} />
-                    <h2 className="text-xl font-bold text-white">Workout Preferences</h2>
-                </div>
 
-                <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                    <div className="space-y-1">
-                        <div className="text-white font-medium">Include Legs + Lower Body</div>
-                        <div className="text-xs text-slate-400">Enable to include squats, lunges, and leg machines.</div>
-                    </div>
-                    <button
-                        onClick={() => toggleLegs(!includeLegs)}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${includeLegs ? 'bg-emerald-500' : 'bg-slate-600'}`}
-                    >
-                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${includeLegs ? 'left-7' : 'left-1'}`} />
-                    </button>
-                </div>
-            </div>
 
             <div className="glass-card p-6 min-h-[400px]">
 
@@ -392,71 +425,48 @@ export const Settings: React.FC = () => {
                 {/* CUSTOM EXERCISES TAB */}
                 {activeTab === 'custom' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
-                            <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4">Create New Exercise</h3>
-                            <div className="space-y-3">
-                                <div>
-                                    <input
-                                        type="text"
-                                        value={newExercise.name}
-                                        onChange={async (e) => {
-                                            const val = e.target.value;
-                                            setNewExercise(prev => ({ ...prev, name: val }));
 
-                                            // Real-time AI classification
-                                            if (val.length > 3) {
-                                                const guess = await SmartParser.classifyExercise(apiKey, val); // Async
-                                                setNewExercise(prev => {
-                                                    // Prevent overwriting if user kept typing and we got a stale result?
-                                                    // For simple use case, just updating is okay.
-                                                    if (prev.name !== val) return prev; // Name changed since we asked
-                                                    return {
-                                                        ...prev,
-                                                        muscleGroup: guess.muscleGroup,
-                                                        equipment: prev.equipment === 'Bodyweight' ? guess.equipment : prev.equipment
-                                                    };
-                                                });
-                                            }
-                                        }}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
-                                        placeholder="Exercise Name (e.g. Diamond Pushups)"
-                                    />
-                                    {newExercise.name.length > 3 && (
-                                        <div className="text-[10px] text-blue-400 mt-1 flex items-center gap-1">
-                                            <span>✨ AI Classified: {newExercise.muscleGroup}</span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <select
-                                            value={newExercise.muscleGroup}
-                                            onChange={e => setNewExercise({ ...newExercise, muscleGroup: e.target.value })}
-                                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
-                                        >
-                                            {['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full Body'].map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <select
-                                            value={newExercise.equipment}
-                                            onChange={e => setNewExercise({ ...newExercise, equipment: e.target.value })}
-                                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none"
-                                        >
-                                            {EQUIPMENT_OPTIONS.map(eq => (
-                                                <option key={eq} value={eq}>{eq}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
+                        <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50">
+                            <h3 className="text-lg font-bold text-white mb-2">Create New Exercise</h3>
+                            <p className="text-slate-400 text-sm mb-4">
+                                Describe the exercise you want to add. Our AI will automatically categorize it for you.
+                            </p>
+
+                            <div className="space-y-4">
+                                <textarea
+                                    value={newExercise.name} // We reusing 'name' field for the prompt temporarily or should we change state? Let's use name.
+                                    onChange={(e) => setNewExercise({ ...newExercise, name: e.target.value })}
+                                    className="w-full h-32 bg-slate-950 border border-slate-700 rounded-xl p-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none resize-none placeholder-slate-600"
+                                    placeholder="e.g. I want to do glute kickbacks using the cable machine..."
+                                />
+
                                 <button
-                                    onClick={handleAddCustom}
-                                    disabled={!newExercise.name}
-                                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg mt-2 flex items-center justify-center gap-2 text-sm transition-colors"
+                                    onClick={async () => {
+                                        if (!newExercise.name) return;
+                                        setIsScanning(true); // Reuse scanning state for loading
+                                        try {
+                                            const added = await addCustomExercise(newExercise.name);
+                                            setCustomSuccessExercise(added); // Save added exercise details
+                                            setNewExercise({ ...newExercise, name: '' });
+                                        } catch (e) {
+                                            alert("Failed to add exercise. Please try again.");
+                                        } finally {
+                                            setIsScanning(false);
+                                        }
+                                    }}
+                                    disabled={!newExercise.name || isScanning}
+                                    className={`w-full py-4 font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${!newExercise.name || isScanning
+                                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/20'
+                                        }`}
                                 >
-                                    <Plus size={16} /> Add to Library
+                                    {isScanning ? (
+                                        <>✨ Analyzing...</>
+                                    ) : (
+                                        <>
+                                            <Plus size={20} /> Add to Library
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -484,6 +494,27 @@ export const Settings: React.FC = () => {
                         )}
                     </div>
                 )}
+            </div>
+
+            {/* PREFERENCES SECTION */}
+            <div className="glass-card p-6 space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                    <Dumbbell className="text-blue-400" size={24} />
+                    <h2 className="text-xl font-bold text-white">Workout Preferences</h2>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <div className="space-y-1">
+                        <div className="text-white font-medium">Include Legs + Lower Body</div>
+                        <div className="text-xs text-slate-400">Enable to include squats, lunges, and leg machines.</div>
+                    </div>
+                    <button
+                        onClick={() => toggleLegs(!includeLegs)}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${includeLegs ? 'bg-emerald-500' : 'bg-slate-600'}`}
+                    >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${includeLegs ? 'left-7' : 'left-1'}`} />
+                    </button>
+                </div>
             </div>
 
             <div className="text-center text-xs text-slate-600 font-medium pb-8">

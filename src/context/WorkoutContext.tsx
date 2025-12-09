@@ -37,6 +37,7 @@ interface WorkoutState {
     availableExerciseNames: string[]; // Whitelist of valid exercises based on profile
     openaiApiKey: string;
     includeLegs: boolean; // NEW: Option to include/exclude leg exercises
+    isGenerating: boolean; // NEW: Global loading state for fun transitions
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -58,8 +59,8 @@ interface WorkoutContextType extends WorkoutState {
     updateUserEquipmentProfile: (profile: string) => Promise<void>;
     setOpenaiApiKey: (key: string) => void;
     testPersistence: () => Promise<string>;
-    toggleLegs: (enabled: boolean) => void; // NEW
-    // ...
+    toggleLegs: (enabled: boolean) => void;
+    setIsGenerating: (isGenerating: boolean) => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -88,7 +89,8 @@ const initialState: WorkoutState = {
     userEquipmentProfile: '',
     availableExerciseNames: [],
     openaiApiKey: '', // Removed localStorage
-    includeLegs: true // Default ON, removed localStorage
+    includeLegs: true, // Default ON, removed localStorage
+    isGenerating: false
 };
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -533,6 +535,115 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return filtered;
     };
 
+    // Pure helper to calculate workout data without setting state
+    const calculateWorkout = (split?: string, focus?: string) => {
+        let splitToUse = split || state.currentSplit;
+        let focusToUse = focus || state.focusArea;
+
+        // --- SPLIT ROTATION ---
+        if (!split && !focus) {
+            const splits = ['Push', 'Pull'];
+            if (state.includeLegs) splits.push('Legs');
+            const currentIndex = splits.indexOf(state.currentSplit);
+            splitToUse = splits[(currentIndex + 1) % splits.length] as any;
+        }
+
+        const getSlots = (split: string) => {
+            if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
+                if (focusToUse === 'Arms') {
+                    return [
+                        { type: 'Isolation', muscle: 'Biceps', count: 3 },
+                        { type: 'Isolation', muscle: 'Triceps', count: 3 },
+                        { type: 'Compound', muscle: 'Shoulders', count: 1 },
+                        { type: 'Isolation', muscle: 'Forearms', count: 1 }
+                    ];
+                }
+                return [
+                    { type: 'Compound', muscle: focusToUse, count: 3 },
+                    { type: 'Isolation', muscle: focusToUse, count: 3 },
+                    { type: 'Compound', muscle: focusToUse, count: 2 }
+                ];
+            }
+
+            if (split === 'Push') return [
+                { type: 'Compound', muscle: 'Chest', count: 2 },
+                { type: 'Compound', muscle: 'Shoulders', count: 2 },
+                { type: 'Isolation', muscle: 'Chest', count: 1 },
+                { type: 'Isolation', muscle: 'Shoulders', count: 1 },
+                { type: 'Isolation', muscle: 'Triceps', count: 2 },
+            ];
+            if (split === 'Pull') return [
+                { type: 'Compound', muscle: 'Back', count: 3 },
+                { type: 'Isolation', muscle: 'Rear Delts', count: 1 },
+                { type: 'Isolation', muscle: 'Biceps', count: 3 },
+                { type: 'Isolation', muscle: 'Traps', count: 1 },
+            ];
+            if (split === 'Legs') return [
+                { type: 'Compound', muscle: 'Quads', count: 2 },
+                { type: 'Compound', muscle: 'Hamstrings', count: 2 },
+                { type: 'Compound', muscle: 'Legs', count: 1 },
+                { type: 'Isolation', muscle: 'Quads', count: 1 },
+                { type: 'Isolation', muscle: 'Hamstrings', count: 1 },
+                { type: 'Isolation', muscle: 'Calves', count: 1 },
+            ];
+            return [
+                { type: 'Compound', muscle: 'Legs', count: 2 },
+                { type: 'Compound', muscle: 'Chest', count: 2 },
+                { type: 'Compound', muscle: 'Back', count: 2 },
+                { type: 'Compound', muscle: 'Shoulders', count: 1 },
+                { type: 'Isolation', muscle: 'Arms', count: 1 },
+            ];
+        };
+
+        const slots = getSlots(splitToUse);
+        const equipmentToUse = focusToUse === 'Bodyweight' ? 'Bodyweight' : state.equipment;
+
+        let categoryFilter = splitToUse;
+        if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
+            categoryFilter = focusToUse;
+        }
+
+        const availableForSplit = getAvailableExercises(equipmentToUse, categoryFilter);
+        const selectedExercises: Exercise[] = [];
+        const usedNames = new Set<string>();
+
+        slots.forEach((slot: any) => {
+            const candidates = availableForSplit.filter(ex => {
+                if (state.excludedExercises.includes(ex.name)) return false;
+                const target = slot.muscle.toLowerCase();
+                const exMuscle = ex.muscleGroup.toLowerCase();
+                const muscleMatch = exMuscle.includes(target) ||
+                    (target === 'arms' && (exMuscle.includes('biceps') || exMuscle.includes('triceps'))) ||
+                    (target === 'back' && (exMuscle.includes('lats') || exMuscle.includes('traps')));
+                return muscleMatch && !usedNames.has(ex.name);
+            });
+
+            const shuffled = candidates.sort((a, b) => {
+                const isFavA = state.favorites.includes(a.name);
+                const isFavB = state.favorites.includes(b.name);
+                if (isFavA && !isFavB) return Math.random() < 0.7 ? -1 : 1;
+                if (!isFavA && isFavB) return Math.random() < 0.7 ? 1 : -1;
+                return 0.5 - Math.random();
+            });
+            const picked = shuffled.slice(0, slot.count);
+            picked.forEach(p => {
+                selectedExercises.push(p);
+                usedNames.add(p.name);
+            });
+        });
+
+        if (selectedExercises.length < 8) {
+            const fallbackPool = getAvailableExercises(equipmentToUse, categoryFilter);
+            const remaining = fallbackPool
+                .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
+                .sort(() => 0.5 - Math.random())
+                .slice(0, 8 - selectedExercises.length);
+            selectedExercises.push(...remaining);
+        }
+
+        return { selectedExercises, splitToUse };
+    };
+
     const generateWorkout = async (splitOverride?: string, focusOverride?: string) => {
         const splitToUse = splitOverride || state.currentSplit;
         const focusToUse = focusOverride || state.focusArea;
@@ -640,132 +751,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // --- HEURISTIC FALLBACK (Existing Logic) ---
         console.log('⚠️ Using Heuristic Fallback Workout...');
 
-        // 1. Define Slots for each split
-        const getSlots = (split: string) => {
-            // ... (Existing Slot Logic) ...
-            // Copying existing content to ensure we don't lose it if I replaced the whole function block.
-            // Since I am replacing lines 560-702, I need to ensure I don't delete the fallback logic.
-            // I will paste the original logic below.
-
-            // --- FOCUS AREA OVERRIDE LOGIC ---
-            if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
-                // STRICT FOCUS: User wants ONLY this muscle group
-                if (focusToUse === 'Arms') {
-                    return [
-                        { type: 'Isolation', muscle: 'Biceps', count: 3 },
-                        { type: 'Isolation', muscle: 'Triceps', count: 3 },
-                        { type: 'Compound', muscle: 'Shoulders', count: 1 }, // Throw in a compound that hits arms
-                        { type: 'Isolation', muscle: 'Forearms', count: 1 }  // Optional
-                    ];
-                }
-
-                // We create slots specifically for this focus, fitting the split logic implicitly
-                // (e.g. if Focus=Arms and Split=Push, this asks for Arms, and logic matches Triceps)
-                return [
-                    { type: 'Compound', muscle: focusToUse, count: 3 },
-                    { type: 'Isolation', muscle: focusToUse, count: 3 },
-                    { type: 'Compound', muscle: focusToUse, count: 2 } // total 8
-                ];
-            }
-
-            // Standard Balanced Slots
-            if (split === 'Push') {
-                return [
-                    { type: 'Compound', muscle: 'Chest', count: 2 },
-                    { type: 'Compound', muscle: 'Shoulders', count: 2 },
-                    { type: 'Isolation', muscle: 'Chest', count: 1 },
-                    { type: 'Isolation', muscle: 'Shoulders', count: 1 },
-                    { type: 'Isolation', muscle: 'Triceps', count: 2 },
-                ];
-            } else if (split === 'Pull') {
-                return [
-                    { type: 'Compound', muscle: 'Back', count: 3 },
-                    { type: 'Isolation', muscle: 'Rear Delts', count: 1 },
-                    { type: 'Isolation', muscle: 'Biceps', count: 3 },
-                    { type: 'Isolation', muscle: 'Traps', count: 1 },
-                ];
-            } else if (split === 'Legs') {
-                return [
-                    { type: 'Compound', muscle: 'Quads', count: 2 },
-                    { type: 'Compound', muscle: 'Hamstrings', count: 2 },
-                    { type: 'Compound', muscle: 'Legs', count: 1 },
-                    { type: 'Isolation', muscle: 'Quads', count: 1 },
-                    { type: 'Isolation', muscle: 'Hamstrings', count: 1 },
-                    { type: 'Isolation', muscle: 'Calves', count: 1 },
-                ];
-            } else {
-                // Full Body
-                return [
-                    { type: 'Compound', muscle: 'Legs', count: 2 },
-                    { type: 'Compound', muscle: 'Chest', count: 2 },
-                    { type: 'Compound', muscle: 'Back', count: 2 },
-                    { type: 'Compound', muscle: 'Shoulders', count: 1 },
-                    { type: 'Isolation', muscle: 'Arms', count: 1 },
-                ];
-            }
-        };
-
-        const selectedExercises: Exercise[] = [];
-        const usedNames = new Set<string>();
-        const slots = getSlots(splitToUse);
-        const equipmentToUse = focusToUse === 'Bodyweight' ? 'Bodyweight' : state.equipment;
-
-        // Determine effective category to filter by
-        // If Focus Area is set (and not Default/Bodyweight which are generic), use it as the category override.
-        // Bodyweight is handled by 'equipmentToUse' and doesn't map to a category strictly.
-        // But if Focus is Chest/Back/Legs/Arms/Shoulders, use that.
-        let categoryFilter = splitToUse;
-        if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
-            categoryFilter = focusToUse;
-        }
-
-        // Use legacy or new getAvailableExercises? 
-        // We modified getAvailableExercises to check for profile. 
-        // If profile exists, it uses profile. If not, it uses eqString.
-        // So passing equipmentToUse works for both cases (it is ignored if profile active).
-        const availableForSplit = getAvailableExercises(equipmentToUse, categoryFilter);
-
-        // 2. Fill Slots
-        slots.forEach(slot => {
-            const candidates = availableForSplit.filter(ex => {
-                if (state.excludedExercises.includes(ex.name)) return false;
-                const target = slot.muscle.toLowerCase();
-                const exMuscle = ex.muscleGroup.toLowerCase();
-                const muscleMatch = exMuscle.includes(target) ||
-                    (target === 'arms' && (exMuscle.includes('biceps') || exMuscle.includes('triceps'))) ||
-                    (target === 'back' && (exMuscle.includes('lats') || exMuscle.includes('traps')));
-                return muscleMatch && !usedNames.has(ex.name);
-            });
-
-            const shuffled = candidates.sort((a, b) => {
-                const isFavA = state.favorites.includes(a.name);
-                const isFavB = state.favorites.includes(b.name);
-                if (isFavA && !isFavB) return Math.random() < 0.7 ? -1 : 1;
-                if (!isFavA && isFavB) return Math.random() < 0.7 ? 1 : -1;
-                return 0.5 - Math.random();
-            });
-            const picked = shuffled.slice(0, slot.count);
-
-            picked.forEach(p => {
-                selectedExercises.push(p);
-                usedNames.add(p.name);
-            });
-        });
-
-        // 3. Fallback Fill
-        if (selectedExercises.length < 8) {
-            console.log('⚠️ Primary slots generation failed or incomplete. Using fallback fill.');
-            // ERROR FIX: Use categoryFilter here too! Otherwise it reverts to 'Legs' (splitToUse)
-            const fallbackPool = getAvailableExercises(equipmentToUse, categoryFilter);
-            console.log(`Fallback Pool Size for ${categoryFilter}: ${fallbackPool.length}`);
-
-            const remaining = fallbackPool
-                .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
-                .sort(() => 0.5 - Math.random())
-                .slice(0, 8 - selectedExercises.length);
-
-            selectedExercises.push(...remaining);
-        }
+        const { selectedExercises, splitToUse: newSplitToUse } = calculateWorkout(splitOverride, focusOverride);
 
         console.log(`✅ Final Workout Generated: ${selectedExercises.length} exercises.`);
 
@@ -773,7 +759,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ...prev,
             dailyWorkout: selectedExercises,
             lastWorkoutDate: new Date().toDateString(),
-            currentSplit: splitToUse as any
+            currentSplit: newSplitToUse as any
         }));
     };
 
@@ -949,36 +935,55 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
     };
 
-    const setFocusArea = (area: string) => {
-        // 1. Capture currently completed exercises to prevent data loss on switch
-        const completedEx = state.dailyWorkout.filter(e => e.completed);
-
-        setState(prev => {
-            const newState = { ...prev, focusArea: area };
-
-            // If the user has done some work, archive it to history before we wipe the slate
-            if (completedEx.length > 0) {
-                const historyEntry: WorkoutHistory = {
-                    date: new Date().toISOString(),
-                    split: prev.currentSplit,
-                    focusArea: prev.focusArea, // Log under the OLD focus area
-                    exercises: completedEx
-                };
-                newState.history = [...prev.history, historyEntry];
-                newState.completedToday = true;
-
-                // Trigger sync effectively by updating state
-                newState.lastSyncTime = null; // Force sync check if needed, or rely on effect deps
-            }
-            return newState;
-        });
-
-        // 2. Regenerate with new focus
-        setTimeout(() => generateWorkout(state.currentSplit, area), 0);
+    const setIsGenerating = (isGenerating: boolean) => {
+        setState(prev => ({ ...prev, isGenerating }));
     };
 
-    const generateCustomWorkout = (targets: string[], equipment: string[]) => {
+    const setFocusArea = (area: string) => {
+        // 1. Start Loader immediately
+        setIsGenerating(true);
+
+        // 2. Wait for Unicorns (Delay State Update)
+        setTimeout(async () => {
+            // A. Update the Focus Area (Header)
+            // We do this first so the UI header changes while curtain is down
+            setState(prev => {
+                const completedEx = prev.dailyWorkout.filter(e => e.completed);
+                const newState = { ...prev, focusArea: area };
+
+                // Archive history if needed
+                if (completedEx.length > 0) {
+                    const historyEntry: WorkoutHistory = {
+                        date: new Date().toISOString(),
+                        split: prev.currentSplit,
+                        focusArea: prev.focusArea, // Log under the OLD focus area
+                        exercises: completedEx
+                    };
+                    newState.history = [...prev.history, historyEntry];
+                    newState.completedToday = true;
+                    newState.lastSyncTime = null;
+                }
+                return newState;
+            });
+
+            // B. Generate Workout (Async - handles AI or Heuristic)
+            // We await this so we know data is ready
+            await generateWorkout(state.currentSplit, area);
+
+            // C. Lift the Curtain
+            // We hold the loader for a significant beat (1s) AFTER data generation
+            setTimeout(() => {
+                setIsGenerating(false);
+            }, 1000);
+        }, 2200);
+    };
+
+    const generateCustomWorkout = async (targets: string[], equipment: string[]) => {
         console.log('Generating Custom Workout for:', targets, equipment);
+        setIsGenerating(true);
+
+        // Artificial Delay for Fun Loader
+        await new Promise(r => setTimeout(r, 2500));
 
         let availablePool = allExercises; // Start with everything
 
@@ -1053,7 +1058,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             customWorkoutActive: true,
             customTargets: targets,
             customEquipment: equipment,
-            lastWorkoutDate: new Date().toDateString() // Mark as new
+            lastWorkoutDate: new Date().toDateString(), // Mark as new
+            isGenerating: false
         }));
     };
 
@@ -1142,6 +1148,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 
     // AI PROFILE UPDATE
+    // AI PROFILE UPDATE
     const addCustomExercise = async (prompt: string) => {
         console.log('Creating Custom Exercise from:', prompt);
         try {
@@ -1156,6 +1163,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 type: 'Isolation' // Default type required by Exercise interface
             };
 
+            // 1. Update Local State
             setState(prev => {
                 const updated = [...prev.customExercises, exObj];
                 return {
@@ -1163,10 +1171,30 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     customExercises: updated
                 };
             });
-            // Also add to all available exercises so it appears immediately
             setAllExercises(prev => [...prev, exObj]);
-            // Note: In a real app we might want to dedupe or handle this better, 
-            // but for now this ensures immediate availability.
+
+            // 2. Persist to Supabase
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Determine description if possible (it's not on Exercise type yet, but returned by parser)
+                const desc = (newEx as any).description || '';
+
+                const { error } = await supabase.from('custom_exercises').insert({
+                    user_id: user.id,
+                    name: exObj.name,
+                    muscle_group: exObj.muscleGroup,
+                    equipment: exObj.equipment,
+                    category: exObj.category,
+                    description: desc
+                });
+
+                if (error) {
+                    console.error('Failed to save custom exercise to DB:', error);
+                    // Optional: Rollback state? For now just log.
+                } else {
+                    console.log('Custom exercise saved to DB');
+                }
+            }
 
             return exObj;
         } catch (e) {
@@ -1283,7 +1311,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             await supabase.from('user_settings').upsert({ id: user.id, include_legs: enabled });
         }
 
-        // 3. Trigger Workout Regen
+        // 3. Trigger Workout Regen (with Fun Loader)
+        setIsGenerating(true);
         setTimeout(() => {
             // Re-evaluate current state logic (simplified)
             let nextSplit = state.currentSplit;
@@ -1293,7 +1322,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (!enabled && ['Legs', 'Quads', 'Hamstrings', 'Calves', 'Glutes'].includes(nextFocus)) nextFocus = 'Default';
 
             generateWorkout(nextSplit, nextFocus);
-        }, 50);
+
+            setTimeout(() => setIsGenerating(false), 500);
+        }, 2000);
     };
 
     const testPersistence = async () => {
@@ -1328,7 +1359,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateUserEquipmentProfile,
         setOpenaiApiKey,
         testPersistence,
-        toggleLegs
+        toggleLegs,
+        setIsGenerating
     };
 
     return (
