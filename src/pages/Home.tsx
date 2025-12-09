@@ -308,7 +308,7 @@ const ExerciseItem = ({
 
                     {/* Details */}
                     <div className="flex-1 min-w-0" onClick={() => setPreviewImage(exercise)} title="Click to view instructions">
-                        <h3 className={`text-lg font-bold text-white truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
+                        <h3 className={`text-sm sm:text-base font-bold text-white truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
                             {exercise.name}
                         </h3>
                         {/* Muscle/Equipment Badge */}
