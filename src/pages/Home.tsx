@@ -23,7 +23,8 @@ export const Home: React.FC = () => {
         clearCustomWorkout,
         includeLegs,
         openaiApiKey,
-        isGenerating
+        isGenerating,
+        generationStatus
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
@@ -83,8 +84,8 @@ export const Home: React.FC = () => {
             <CustomizeWorkoutModal isOpen={isCustomizeOpen} onClose={() => setIsCustomizeOpen(false)} />
             <UpcomingWorkoutModal isOpen={false} onClose={() => { }} />
 
-            {/* GLOBAL FUN LOADER */}
-            <FunLoader visible={isGenerating} />
+            {/* Fun Loading Overlay */}
+            <FunLoader visible={isGenerating} customMessage={generationStatus} />
 
             {/* Image Preview Modal */}
             <AnimatePresence>

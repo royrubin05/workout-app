@@ -38,6 +38,7 @@ interface WorkoutState {
     openaiApiKey: string;
     includeLegs: boolean; // NEW: Option to include/exclude leg exercises
     isGenerating: boolean; // NEW: Global loading state for fun transitions
+    generationStatus?: string; // NEW: Status message for loader (e.g. "Consulting AI...")
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -61,6 +62,7 @@ interface WorkoutContextType extends WorkoutState {
     testPersistence: () => Promise<string>;
     toggleLegs: (enabled: boolean) => void;
     setIsGenerating: (isGenerating: boolean) => void;
+    setGenerationStatus: (status: string | undefined) => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -88,7 +90,7 @@ const initialState: WorkoutState = {
     customExercises: [],
     userEquipmentProfile: '',
     availableExerciseNames: [],
-    openaiApiKey: '', // Removed localStorage
+    openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY || '', // Load from env if available
     includeLegs: true, // Default ON, removed localStorage
     isGenerating: false
 };
@@ -651,9 +653,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         console.log(`💪 generatingWorkout... Split: ${splitToUse}, Focus: ${focusToUse}, Override: ${focusOverride}`);
 
+        // 0. Update Status Initial
+        setState(prev => ({ ...prev, generationStatus: "Analyzing Equipment... 🔍" }));
+
         // --- AI GENERATION MODE ---
         if (apiKey && state.userEquipmentProfile) {
             console.log('🤖 Generating AI Workout...');
+            setState(prev => ({ ...prev, generationStatus: "Consulting AI Coach... 🤖" }));
+
             try {
                 // CRITICAL FIX: Do NOT pre-filter whitelist by Split if using AI.
                 // Allow AI to select from ALL equipment-valid exercises to handle Focus overrides properly.
@@ -681,6 +688,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 const aiPlan = aiResult.exercises;
 
                 if (aiPlan.length > 0) {
+                    setState(prev => ({ ...prev, generationStatus: "Finalizing Plan... ✨" }));
+
                     // Map AI plan to Exercise objects
                     const mappedWorkout: WorkoutExercise[] = aiPlan.map((step, idx) => {
                         // Find matching DB exercise (Standard OR Custom)
@@ -745,11 +754,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
             } catch (e) {
                 console.error("AI Generation Failed, using fallback:", e);
+                // Status update for fallback
+                setState(prev => ({ ...prev, generationStatus: "AI Busy, trying fallback... ⚠️" }));
             }
         }
 
         // --- HEURISTIC FALLBACK (Existing Logic) ---
         console.log('⚠️ Using Heuristic Fallback Workout...');
+        setState(prev => ({ ...prev, generationStatus: "Calculating Locally... 🧮" }));
 
         const { selectedExercises, splitToUse: newSplitToUse } = calculateWorkout(splitOverride, focusOverride);
 
@@ -1339,6 +1351,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return data?.openai_api_key === testKey ? "SUCCESS: Read/Write confirmed" : "FAILURE: Read mismatch";
     };
 
+    const setGenerationStatus = (status: string | undefined) => {
+        setState(prev => ({ ...prev, generationStatus: status }));
+    };
+
     const value = {
         ...state,
         allExercises: getAllExercises(),
@@ -1360,7 +1376,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setOpenaiApiKey,
         testPersistence,
         toggleLegs,
-        setIsGenerating
+        setIsGenerating,
+        setGenerationStatus
     };
 
     return (

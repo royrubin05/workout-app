@@ -13,17 +13,26 @@ const LOADING_MESSAGES = [
 
 const ANIMALS = ['🦄', '🐈', '🦒', '🦖', '🦍', '🦘'];
 
-export const FunLoader: React.FC<{ visible: boolean }> = ({ visible }) => {
-    const [message, setMessage] = useState(LOADING_MESSAGES[0]);
+export const FunLoader: React.FC<{ visible: boolean; customMessage?: string }> = ({ visible, customMessage }) => {
+    const [message, setMessage] = useState(customMessage || LOADING_MESSAGES[0]);
     const [animalIndex, setAnimalIndex] = useState(0);
+
+    useEffect(() => {
+        if (customMessage) {
+            setMessage(customMessage);
+        }
+    }, [customMessage]);
 
     useEffect(() => {
         if (!visible) return;
 
-        // Cycle messages
-        const msgInterval = setInterval(() => {
-            setMessage(LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)]);
-        }, 2000);
+        // Cycle messages ONLY if no custom message
+        let msgInterval: any;
+        if (!customMessage) {
+            msgInterval = setInterval(() => {
+                setMessage(LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)]);
+            }, 2000);
+        }
 
         // Cycle animals
         const animalInterval = setInterval(() => {
