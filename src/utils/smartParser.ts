@@ -235,7 +235,8 @@ export const SmartParser = {
         1. Include 6-8 exercises.
         2. Sequence them logically: Warmup -> Heavy Compound -> Hypertrophy -> Isolation/Finisher.
         3. If a Favorite fits the split/muscle, USE IT and place it prominently.
-        4. Return JSON OBJECT: { 
+        4. STRICT FOCUS RULE: If '${focusArea}' is NOT 'Default', every exercise MUST target '${focusArea}'. Do NOT include secondary muscles (e.g. if Focus is Chest, do NOT add Triceps). If '${focusArea}' is 'Arms', respect the Split (Push=Triceps, Pull=Biceps).
+        5. Return JSON OBJECT: { 
             "strategy": "A 2-sentence specific advice for this specific workout session (e.g. 'Focus on slow eccentrics for chest today as we are doing high volume...')",
             "exercises": [{"name": "Bench Press", "sets": "4", "reps": "5-8", "note": "Explode up"}] 
         }

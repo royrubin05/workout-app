@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Trash2, Plus, Star, Dumbbell, CalendarDays, History } from 'lucide-react';
+import { Dumbbell, Star, Plus, Trash2, CalendarDays, CheckCircle2, History as HistoryIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 import { SmartParser } from '../utils/smartParser';
@@ -20,7 +20,9 @@ export const Settings: React.FC = () => {
         openaiApiKey,
         setOpenaiApiKey,
         connectionStatus,
-        testPersistence // added
+        testPersistence, // added
+        includeLegs, // Added by user's instruction
+        toggleLegs // Added by user's instruction
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
@@ -57,6 +59,7 @@ export const Settings: React.FC = () => {
         muscleGroup: 'Chest',
         equipment: 'Bodyweight'
     });
+    const [showSuccessModal, setShowSuccessModal] = React.useState(false); // Success modal state
 
     const handleAddCustom = () => {
         if (!newExercise.name) return;
@@ -79,7 +82,35 @@ export const Settings: React.FC = () => {
     ];
 
     return (
-        <div className="max-w-xl mx-auto pb-24 space-y-6">
+        <div className="min-h-screen pb-24 px-4 pt-6 max-w-xl mx-auto space-y-6">
+            {/* SUCCESS MODAL */}
+            {showSuccessModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setShowSuccessModal(false)}
+                >
+                    <div
+                        className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 text-emerald-400">
+                                <CheckCircle2 size={32} />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">Profile Saved!</h3>
+                            <p className="text-slate-400 text-sm mb-6">
+                                We have scanned your equipment and filtered your exercise library.
+                            </p>
+                            <button
+                                onClick={() => setShowSuccessModal(false)}
+                                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-colors"
+                            >
+                                Awesome
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <UpcomingWorkoutModal isOpen={showUpcomingModal} onClose={() => setShowUpcomingModal(false)} />
 
             {/* Header */}
@@ -146,7 +177,7 @@ export const Settings: React.FC = () => {
             {/* Quick Actions Grid */}
             <div className="grid grid-cols-2 gap-4">
                 <Link to="/reports" className="glass-card p-4 flex flex-col items-center justify-center gap-2 hover:bg-slate-800/80 transition-colors group text-center">
-                    <History className="text-emerald-400 group-hover:scale-110 transition-transform" size={24} />
+                    <HistoryIcon className="text-emerald-400 group-hover:scale-110 transition-transform" size={24} />
                     <span className="text-sm font-bold text-slate-200">History</span>
                 </Link>
                 <button
@@ -177,6 +208,27 @@ export const Settings: React.FC = () => {
                         {tab.label}
                     </button>
                 ))}
+            </div>
+
+            {/* PREFERENCES SECTION */}
+            <div className="glass-card p-6 space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                    <Dumbbell className="text-blue-400" size={24} />
+                    <h2 className="text-xl font-bold text-white">Workout Preferences</h2>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <div className="space-y-1">
+                        <div className="text-white font-medium">Include Legs + Lower Body</div>
+                        <div className="text-xs text-slate-400">Enable to include squats, lunges, and leg machines.</div>
+                    </div>
+                    <button
+                        onClick={() => toggleLegs(!includeLegs)}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${includeLegs ? 'bg-emerald-500' : 'bg-slate-600'}`}
+                    >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${includeLegs ? 'left-7' : 'left-1'}`} />
+                    </button>
+                </div>
             </div>
 
             <div className="glass-card p-6 min-h-[400px]">
@@ -210,7 +262,7 @@ export const Settings: React.FC = () => {
                                         setIsScanning(true);
                                         await updateUserEquipmentProfile(localProfile);
                                         setIsScanning(false);
-                                        alert('Profile Saved! We have filtered your exercises.');
+                                        setShowSuccessModal(true); // Show modal instead of alert
                                     }}
                                     disabled={isScanning || !apiKey}
                                     className={`px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${!apiKey ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :

@@ -1,7 +1,8 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { RefreshCw, MinusCircle, CheckCircle2, X, GripVertical, Zap } from 'lucide-react';
+import { RefreshCw, CheckCircle2, X, GripVertical, Zap, Star, Trash2, Circle } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
 import { CustomizeWorkoutModal } from '../components/CustomizeWorkoutModal';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
@@ -19,8 +20,8 @@ export const Home: React.FC = () => {
         setFocusArea,
         customWorkoutActive,
         clearCustomWorkout,
-        strategyInsight, // Get strategy
-        allExercises // Add this
+        includeLegs,
+        openaiApiKey
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
@@ -133,6 +134,22 @@ export const Home: React.FC = () => {
 
             {/* Header and Controls */}
             <div className="flex flex-col gap-4">
+                {!openaiApiKey && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-amber-200 text-sm">
+                            <Zap size={16} className="text-amber-400" />
+                            <span>AI Key missing. Features limited.</span>
+                        </div>
+                        <button
+                            onClick={() => window.location.hash = '#/settings'} // Assuming simple hash routing or just text
+                            // Actually, just tell them to go to settings.
+                            className="text-xs font-bold text-amber-400 hover:text-amber-300"
+                        >
+                            Go to Settings
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex flex-col">
                     <h1 className="text-3xl font-bold text-white">Your {currentSplit} Workout</h1>
                     {focusArea !== 'Default' && <p className="text-slate-400 text-sm">Focus: {focusArea}</p>}
@@ -151,7 +168,7 @@ export const Home: React.FC = () => {
                         <option value="Default">Standard Split</option>
                         <option value="Chest">Focus: Chest</option>
                         <option value="Back">Focus: Back</option>
-                        <option value="Legs">Focus: Legs</option>
+                        {includeLegs && <option value="Legs">Focus: Legs</option>}
                         <option value="Shoulders">Focus: Shoulders</option>
                         <option value="Arms">Focus: Arms</option>
                         <option value="Bodyweight">Focus: Bodyweight / Travel</option>
@@ -166,22 +183,10 @@ export const Home: React.FC = () => {
                     </button>
                 </div>
 
-                {/* AI Summary Card */}
-                <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 p-4 rounded-xl border border-indigo-500/30 flex gap-3 items-start animate-in fade-in slide-in-from-top-4 duration-700">
-                    <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-300 shrink-0">
-                        <Zap size={20} />
-                    </div>
-                    <div>
-                        <h4 className="text-indigo-200 font-bold text-sm mb-1">AI Strategy Insight</h4>
-                        <p className="text-indigo-100/80 text-sm leading-relaxed">
-                            {strategyInsight || "Loading personalized strategy..."}
-                        </p>
-                    </div>
-                </div>
             </div>
 
             {/* Exercise List */}
-            <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8">
+            <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8 list-none">
                 <AnimatePresence mode="popLayout">
                     {dailyWorkout.map((exercise) => (
                         <ExerciseItem
@@ -205,47 +210,45 @@ export const Home: React.FC = () => {
                 )
             }
 
-            {/* DEBUG PANEL */}
-            <div className="mt-8 p-4 bg-black/50 rounded text-[10px] font-mono text-green-400 border border-green-900 overflow-hidden">
-                <p>DEBUG INFO:</p>
-                <p>Total Loading: {allExercises.length}</p>
-                <p>With Images: {allExercises.filter((e: any) => e.gifUrl).length}</p>
-                <p>Sample (first): {JSON.stringify(allExercises[0] || {}, null, 2)}</p>
-                <p>Sample with Img: {JSON.stringify(allExercises.find((e: any) => e.gifUrl) || 'None found', null, 2)}</p>
-                <p>--- EXPERIMENT ---</p>
-                <p>Daily Workout Count: {dailyWorkout.length}</p>
-                <p>Daily Workout Sample: {JSON.stringify(dailyWorkout[0] || {}, null, 2)}</p>
-            </div>
+            {/* Finish Workout Button REMOVED */}
         </div >
     );
 };
 
 // Extracted component for Drag Controls
-const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, replaceExercise, excludeExercise }: any) => {
+const ExerciseItem = ({
+    exercise,
+    toggleExerciseCompletion,
+    setPreviewImage,
+    replaceExercise,
+    excludeExercise
+}: any) => {
     const controls = useDragControls();
     const { favorites, toggleFavorite } = useWorkout();
     const timeoutRef = React.useRef<any>(null);
 
     const isFavorite = favorites.includes(exercise.name);
 
+    // Trigger confetti on completion
+    const handleCompletion = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        toggleExerciseCompletion(exercise.id);
+        if (!exercise.completed) {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        }
+    };
+
     const handlePointerDown = (e: React.PointerEvent) => {
-        // Prevent default browser behavior (scrolling) only if we decide to drag?
-        // Actually, with touch-none, scrolling is disabled on the handle anyway.
-        // But to allow scrolling if they just brush it, we might want to remove touch-none?
-        // For now, adhering to "long press to reorder".
-        // Use e.persist() or capture event properties if needed, but synchronous start is best?
-        // Note: Framer Motion controls.start(e) typically needs to be called synchronously on PointerDown
-        // for some browsers constraints, but let's try the timeout.
-
-        // Actually, passing the event async works in most modern React/Framer versions as long as the event object exists.
-        // We persist the event just in case (though React 17+ doesn't pool).
-
         timeoutRef.current = setTimeout(() => {
             controls.start(e);
             if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate(50); // Haptic feedback
+                window.navigator.vibrate(50);
             }
-        }, 300); // 300ms hold
+        }, 300);
     };
 
     const handlePointerUp = () => {
@@ -260,7 +263,7 @@ const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, rep
             value={exercise}
             dragListener={false}
             dragControls={controls}
-            className="touch-none select-none"
+            className={`touch-none select-none ${exercise.completed ? 'grayscale opacity-60' : ''}`}
         >
             <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -279,80 +282,90 @@ const ExerciseItem = ({ exercise, toggleExerciseCompletion, setPreviewImage, rep
                     <GripVertical size={16} className="text-slate-600" />
                 </div>
 
-                <div className="flex items-center gap-4 pl-16 flex-1">
-                    <button
-                        onClick={() => toggleExerciseCompletion(exercise.id)}
-                        className={`shrink-0 transition-colors ${exercise.completed ? 'text-emerald-500' : 'text-slate-600 hover:text-slate-400'}`}
-                    >
-                        {exercise.completed ? <CheckCircle2 size={24} /> : <MinusCircle size={24} />}
-                    </button>
-                    <div className="flex-1 min-w-0" onClick={() => setPreviewImage(exercise)}>
-                        <h3 className={`font-bold text-white truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
+                <div className="flex items-center gap-4 flex-1">
+                    {/* Thumbnail - Bigger now (w-20) */}
+                    <div onClick={() => setPreviewImage(exercise)} className="shrink-0 cursor-pointer relative group/thumb" title="Click to view instructions">
+                        {exercise.gifUrl ? (
+                            <img
+                                src={exercise.gifUrl}
+                                alt={exercise.name}
+                                className={`w-20 h-20 rounded-lg object-cover bg-slate-800 transition-all ${exercise.completed ? 'opacity-50 grayscale' : 'group-hover/thumb:ring-2 ring-indigo-500'}`}
+                                loading="lazy"
+                            />
+                        ) : (
+                            <div className={`w-20 h-20 rounded-lg bg-slate-800 flex items-center justify-center text-xl text-slate-500 font-bold ${exercise.completed ? 'opacity-50' : 'group-hover/thumb:ring-2 ring-indigo-500'}`}>
+                                {exercise.name.slice(0, 2)}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Details */}
+                    <div className="flex-1 min-w-0" onClick={() => setPreviewImage(exercise)} title="Click to view instructions">
+                        <h3 className={`text-lg font-bold text-white truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
                             {exercise.name}
                         </h3>
                         {/* Muscle/Equipment Badge */}
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 uppercase tracking-wider">
                                 {exercise.muscleGroup}
                             </span>
                             {exercise.equipment !== 'Bodyweight' && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-300 border border-blue-800/30">
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-900/30 text-blue-300 border border-blue-800/30">
                                     {exercise.equipment}
                                 </span>
                             )}
                             {exercise.isCustom && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-300 border border-purple-800/30 flex items-center gap-1">
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-purple-900/30 text-purple-300 border border-purple-800/30 flex items-center gap-1">
                                     AI <Zap size={8} />
                                 </span>
                             )}
                         </div>
-                        <p className="text-xs text-slate-500 mt-1 truncate">
-                            {exercise.reps} • {exercise.notes}
+                        <p className="text-xs text-slate-500 mt-2 truncate">
+                            {exercise.reps} {exercise.notes && `• ${exercise.notes}`}
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 pl-2">
-                    {/* Favorite Button */}
+                {/* Right Side Actions */}
+                <div className="flex items-center gap-1 pl-2">
+                    {/* Refresh / Swap */}
                     <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(exercise.name);
-                        }}
-                        className={`p-2 transition-colors ${isFavorite ? 'text-yellow-500' : 'text-slate-600 hover:text-yellow-500/50'}`}
+                        onClick={(e) => { e.stopPropagation(); replaceExercise(exercise.name); }}
+                        className="p-2 text-slate-500 hover:text-blue-400 transition-colors rounded-full hover:bg-white/5"
+                        title="Swap with another exercise"
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill={isFavorite ? "currentColor" : "none"}
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                        </svg>
+                        <RefreshCw size={18} />
                     </button>
 
-                    {/* Replacement Actions */}
-                    <div className="flex flex-col gap-1">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); replaceExercise(exercise.id); }}
-                            className="p-1.5 text-slate-600 hover:text-blue-400 bg-slate-800/50 rounded"
-                            title="Swap Exercise"
-                        >
-                            <RefreshCw size={14} />
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); excludeExercise(exercise.name); }}
-                            className="p-1.5 text-slate-600 hover:text-red-400 bg-slate-800/50 rounded"
-                            title="Exclude Exercise"
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
+                    {/* Favorite */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); toggleFavorite(exercise.name); }}
+                        className={`p-2 transition-colors rounded-full hover:bg-white/5 ${isFavorite ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}
+                        title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                    >
+                        <Star size={18} fill={isFavorite ? "currentColor" : "none"} />
+                    </button>
+
+                    {/* Remove / Exclude */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); excludeExercise(exercise.name); }}
+                        className="p-2 text-slate-500 hover:text-red-500 transition-colors rounded-full hover:bg-white/5"
+                        title="Remove forever (Exclude)"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+
+                    {/* Complete Button - Main Action */}
+                    <button
+                        onClick={handleCompletion}
+                        className={`ml-2 p-3 rounded-full transition-all duration-300 ${exercise.completed
+                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                            : 'bg-slate-700 text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400'
+                            }`}
+                        title={exercise.completed ? "Completed!" : "Mark as Complete"}
+                    >
+                        {exercise.completed ? <CheckCircle2 size={24} strokeWidth={3} /> : <Circle size={24} strokeWidth={2} />}
+                    </button>
                 </div>
             </motion.div>
         </Reorder.Item>

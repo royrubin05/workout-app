@@ -7,10 +7,7 @@ export interface WorkoutExercise extends Exercise {
     completed?: boolean;
 }
 
-// Extend Exercise to include completion status
-export interface WorkoutExercise extends Exercise {
-    completed?: boolean;
-}
+
 
 interface WorkoutHistory {
     date: string;
@@ -39,12 +36,11 @@ interface WorkoutState {
     userEquipmentProfile: string;
     availableExerciseNames: string[]; // Whitelist of valid exercises based on profile
     openaiApiKey: string;
-    strategyInsight: string; // NEW: Real-time AI Strategy
+    includeLegs: boolean; // NEW: Option to include/exclude leg exercises
 }
 
 interface WorkoutContextType extends WorkoutState {
     updateEquipment: (eq: string) => void;
-    logWorkout: () => void;
     refreshWorkout: () => void;
     allExercises: Exercise[];
     getAvailableExercises: (eq: string, category?: string) => Exercise[];
@@ -62,6 +58,7 @@ interface WorkoutContextType extends WorkoutState {
     updateUserEquipmentProfile: (profile: string) => Promise<void>;
     setOpenaiApiKey: (key: string) => void;
     testPersistence: () => Promise<string>;
+    toggleLegs: (enabled: boolean) => void; // NEW
     // ...
 }
 
@@ -90,8 +87,8 @@ const initialState: WorkoutState = {
     customExercises: [],
     userEquipmentProfile: '',
     availableExerciseNames: [],
-    openaiApiKey: localStorage.getItem('openai_api_key') || '',
-    strategyInsight: ''
+    openaiApiKey: '', // Removed localStorage
+    includeLegs: true // Default ON, removed localStorage
 };
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -101,47 +98,40 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [allExercises, setAllExercises] = useState<Exercise[]>([]);
     const [loadingProgress, setLoadingProgress] = useState(0);
 
-    // Loading Animation Effect
     // Load Exercises from DB on Mount
     useEffect(() => {
         const initializeData = async () => {
             try {
                 // 1. Fetch from Supabase
-                const { data, error } = await supabase
-                    .from('exercises')
-                    .select('*');
-
+                const { data, error } = await supabase.from('exercises').select('*');
                 if (error) throw error;
 
                 if (data && data.length > 0) {
-                    console.log(`Loaded ${data.length} exercises from Supabase`);
                     const dbExercises: Exercise[] = data.map(d => ({
                         name: d.name,
                         category: d.category,
-                        muscles: d.muscle_group, // Legacy
+                        muscles: d.muscle_group,
                         muscleGroup: d.muscle_group, // Map DB 'muscle_group' -> App 'muscleGroup'
                         equipment: d.equipment,
-                        type: 'Compound', // Default for now, or map if DB has it
-                        gifUrl: d.gif_url, // Map snake_case DB to camelCase prop
+                        type: 'Compound',
+                        gifUrl: d.gif_url,
                         id: d.id || `db-${Math.random()}`
                     }));
                     setAllExercises(dbExercises);
                     setState(prev => ({ ...prev, connectionStatus: 'connected' }));
                 } else {
-                    // 2. Fallback if DB empty (or first run before migration)
-                    console.log('DB empty, using static exercises');
+                    // Fallback
                     const staticExercises: Exercise[] = BASE_MOVEMENTS.map((ex: any, i) => ({
                         id: `static-${i}`,
                         name: ex.name,
                         category: ex.category,
-                        muscleGroup: ex.muscles, // Map
+                        muscleGroup: ex.muscles,
                         equipment: ex.equipment,
-                        type: 'Compound', // Default
-                        muscles: ex.muscle_group, // Ensure muscle_group is mapped if needed, or stick to 'muscles' logic
-                        gifUrl: ex.gif_url // Map snake_case DB to camelCase prop
+                        type: 'Compound',
+                        muscles: ex.muscles,
+                        gifUrl: ex.gif_url
                     }));
                     setAllExercises(staticExercises);
-                    setState(prev => ({ ...prev, connectionStatus: 'connected' }));
                 }
             } catch (err) {
                 console.warn('Offline or DB Error, using static data:', err);
@@ -160,7 +150,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 setIsLoaded(true);
             }
         };
-
         initializeData();
     }, []);
 
@@ -176,79 +165,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return () => clearInterval(interval);
     }, [isLoaded]);
 
-    // Initialize
-    useEffect(() => {
-        const init = async () => {
-            // 1. Fetch Exercises from DB
-            let dbExercises: Exercise[] = [];
-            if (supabase) {
-                const { data } = await supabase.from('exercises').select('*');
-
-                if (data && data.length > 0) {
-                    console.log(`📦 Loaded ${data.length} exercises from Supabase.`);
-                    dbExercises = data.map((d: any) => ({
-                        id: d.id,
-                        name: d.name,
-                        equipment: d.equipment,
-                        category: d.category,
-                        muscleGroup: d.muscle_group,
-                        gifUrl: d.gif_url,
-                        type: 'Compound' // Default for DB loaded exercises if column missing
-                    }));
-                    setAllExercises(dbExercises);
-                } else {
-                    console.log('📭 Database empty. Fetching from External API...');
-                    // DB is empty, fetch from API and populate
-                    try {
-                        const { fetchExercisesFromAPI, mapApiToInternal } = await import('../services/exerciseDB');
-                        const apiData = await fetchExercisesFromAPI();
-
-                        if (apiData.length > 0) {
-                            const mappedExercises = mapApiToInternal(apiData);
-                            console.log(`🚀 Fetched ${mappedExercises.length} exercises from API. Syncing to DB...`);
-
-                            // Prepare for DB insert (map to snake_case columns)
-                            const dbInserts = mappedExercises.map(ex => ({
-                                id: ex.id,
-                                name: ex.name,
-                                equipment: ex.equipment,
-                                category: ex.category,
-                                muscle_group: ex.muscleGroup,
-                                gif_url: ex.gifUrl
-                            }));
-
-                            // Insert in chunks to avoid payload limits
-                            const chunkSize = 100;
-                            for (let i = 0; i < dbInserts.length; i += chunkSize) {
-                                const chunk = dbInserts.slice(i, i + chunkSize);
-                                const { error: insertError } = await supabase.from('exercises').upsert(chunk);
-                                if (insertError) console.error('Error syncing chunk:', insertError);
-                            }
-
-                            console.log('✅ Sync complete!');
-                            setAllExercises(mappedExercises);
-                        }
-                    } catch (e) {
-                        console.error("Failed to auto-populate exercises:", e);
-                    }
-                }
-            }
-        };
-
-        init();
-        setIsLoaded(true);
-    }, []);
-
-    // Save to storage on change
-    // REMOVED: User requested NO local storage. Everything is in DB.
-    /*
-    useEffect(() => {
-        if (isLoaded) {
-            saveToStorage(state);
-        }
-    }, [state, isLoaded]);
-    */
-
     // --- SUPABASE AUTH & SYNC ---
     useEffect(() => {
         const connectToCloud = async () => {
@@ -262,151 +178,85 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     password: 'password123',
                 }));
 
-                if (authError) {
-                    console.warn('Supabase Login Failed:', authError.message);
-
-                    // Try Auto-Signup if login fails
-                    if (authError.message.includes('Invalid login credentials')) {
-                        console.log('⚠️ Attempting Auto-Signup...');
+                if (authError || !authData?.session) {
+                    console.log('Login failed, trying signup/session check...');
+                    // Just check session if login failed (maybe already logged in?)
+                    const { data: sessionData } = await supabase.auth.getSession();
+                    if (sessionData.session) {
+                        authData = sessionData;
+                    } else {
+                        // Attempt Signup
                         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
                             email: 'roy.rubin@gmail.com',
                             password: 'password123',
                         });
-
-                        if (signUpError) {
-                            console.error('Auto-Signup Failed:', signUpError.message);
-
-                            let helpfulMessage = `Login & Signup Failed: ${signUpError.message}`;
-                            if (signUpError.message.includes('already registered')) {
-                                helpfulMessage = 'Account stuck. Please DELETE user in Supabase Dashboard -> Users.';
-                            }
-
-                            setState(prev => ({
-                                ...prev,
-                                connectionStatus: 'disconnected',
-                                connectionError: helpfulMessage
-                            }));
-                            return;
-                        }
-
-                        // If signup worked, we are logged in!
-                        // But we might need to wait for session? 
-                        // Usually signUp returns session if email confirmation is off.
-                        if (signUpData.session) {
-                            console.log('✅ Auto-Signup Successful!');
-                            // Proceed to load data (which will be empty)
-                            // We need to update authData to use this new session
-                            // Actually, let's just let the flow continue or recurse?
-                            // Simplest is to just set userId here.
-                            const userId = signUpData.user?.id;
-                            if (userId) {
-                                // Proceed to sync (skip load since it's new)
-                                setState(prev => ({
-                                    ...prev,
-                                    connectionStatus: 'connected',
-                                    lastSyncTime: new Date().toLocaleTimeString()
-                                }));
-                                return;
-                            }
-                        } else {
-                            setState(prev => ({
-                                ...prev,
-                                connectionStatus: 'disconnected',
-                                connectionError: 'Signup successful but email confirmation required.'
-                            }));
-                            return;
-                        }
+                        if (signUpData.session) authData = signUpData;
+                        else if (signUpError) throw signUpError;
                     }
-
-                    setState(prev => ({
-                        ...prev,
-                        connectionStatus: 'disconnected',
-                        connectionError: authError.message
-                    }));
-                    return;
                 }
 
-                if (!authData?.user) {
-                    console.error('Login successful but no user returned');
-                    return;
+                const userId = authData?.session?.user?.id;
+
+                if (userId) {
+                    console.log('☁️ Connected to Cloud as:', authData?.session?.user.email);
+
+                    // 2. Load Cloud Data (Settings & State)
+                    const { data: settingsData } = await supabase
+                        .from('user_settings')
+                        .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key, available_exercise_names, include_legs')
+                        .eq('id', userId)
+                        .single();
+
+                    console.log('☁️ Loaded Settings:', settingsData);
+
+                    // 3. Load Cloud Data (History)
+                    const { data: historyData } = await supabase
+                        .from('workout_history')
+                        .select('*')
+                        .eq('user_id', userId);
+
+                    // 4. Merge/Update State
+                    setState(prev => {
+                        const newEquipment = settingsData?.equipment || prev.equipment;
+                        const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
+                        const newFavorites = settingsData?.favorites || prev.favorites || [];
+                        const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
+                        const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey || '';
+                        const newAvailableExercises = settingsData?.available_exercise_names || prev.availableExerciseNames || [];
+                        const newIncludeLegs = settingsData?.include_legs !== undefined ? settingsData.include_legs : true;
+
+                        const newSplit = settingsData?.current_split || prev.currentSplit;
+                        const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
+                        const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
+                        const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
+                        const newFocusArea = 'Default';
+
+                        const cloudHistory = historyData?.map((h: any) => ({
+                            date: h.date,
+                            split: h.split,
+                            exercises: typeof h.exercises === 'string' ? JSON.parse(h.exercises) : h.exercises
+                        })) || [];
+
+                        return {
+                            ...prev,
+                            equipment: newEquipment,
+                            excludedExercises: newExcluded,
+                            favorites: newFavorites,
+                            userEquipmentProfile: newProfile,
+                            openaiApiKey: newApiKey,
+                            availableExerciseNames: newAvailableExercises,
+                            includeLegs: newIncludeLegs,
+                            currentSplit: newSplit,
+                            dailyWorkout: newDailyWorkout,
+                            lastWorkoutDate: newLastDate,
+                            completedToday: newCompletedToday,
+                            focusArea: newFocusArea,
+                            history: cloudHistory.length > 0 ? cloudHistory : prev.history,
+                            connectionStatus: 'connected',
+                            lastSyncTime: new Date().toLocaleTimeString()
+                        };
+                    });
                 }
-
-                const userId = authData.user.id;
-                console.log('☁️ Connected to Cloud as:', authData.user.email);
-
-                // 2. Load Cloud Data (Settings & State)
-                // Added: favorites, user_equipment_profile, custom_exercises
-                const { data: settingsData } = await supabase
-                    .from('user_settings')
-                    .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key, available_exercise_names')
-                    .eq('id', userId)
-                    .single();
-
-                // 3. Load Cloud Data (History)
-                const { data: historyData } = await supabase
-                    .from('workout_history')
-                    .select('*')
-                    .eq('user_id', userId);
-
-                // 4. Merge/Update State
-                setState(prev => {
-                    const newEquipment = settingsData?.equipment || prev.equipment;
-                    const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
-                    const newFavorites = settingsData?.favorites || prev.favorites || [];
-                    const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
-                    const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey || localStorage.getItem('openai_api_key') || '';
-                    const newAvailableExercises = settingsData?.available_exercise_names || prev.availableExerciseNames || [];
-
-                    // Restore full state
-                    const newSplit = settingsData?.current_split || prev.currentSplit;
-                    const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
-                    const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
-                    const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
-                    // User Request: Always default to 'Standard Split' (Default) on initial load, ignoring saved focus
-                    const newFocusArea = 'Default';
-
-                    // Re-calculate local whitelist if profile exists?
-                    // We might need to handle this asynchronously after load, OR store the whitelist too?
-                    // For now, let's trigger a re-parse if profile exists and whitelist is empty? 
-                    // Or rely on updateUserEquipmentProfile being called or manual update?
-                    // Actually, if we just load the string, the filter won't work until we have the whitelist.
-                    // Ideally we store `available_exercise_names` in DB too, but let's stick to profile string + client re-gen for now if needed.
-                    // Better: Trigger updateProfile if we load a profile? Or just fail silently until user hits save?
-                    // Let's rely on local storage for the whitelist first (which works), but if we clear local storage...
-                    // We'll address whitelist persistence later if requested.
-
-                    const cloudHistory = historyData?.map((h: any) => ({
-                        date: h.date,
-                        split: h.split,
-                        exercises: typeof h.exercises === 'string' ? JSON.parse(h.exercises) : h.exercises
-                    })) || [];
-
-                    return {
-                        ...prev,
-                        equipment: newEquipment,
-                        excludedExercises: newExcluded,
-                        favorites: newFavorites,
-                        userEquipmentProfile: newProfile,
-                        currentSplit: newSplit,
-                        dailyWorkout: newDailyWorkout,
-                        lastWorkoutDate: newLastDate,
-                        completedToday: newCompletedToday,
-                        focusArea: newFocusArea,
-                        history: cloudHistory.length > 0 ? cloudHistory : prev.history,
-                        connectionStatus: 'connected',
-                        lastSyncTime: new Date().toLocaleTimeString(),
-                        openaiApiKey: newApiKey,
-                        availableExerciseNames: newAvailableExercises
-                    };
-                });
-
-                // Trigger whitelist update if profile loaded?
-                if (settingsData?.user_equipment_profile) {
-                    // We'll need access to allExercises, which might not be loaded yet here?
-                    // connectToCloud is inside useEffect with dependency []...
-                    // Let's just leave it for now.
-                }
-
             } catch (e: any) {
                 console.error('Cloud Connection Error:', e);
                 setState(prev => ({
@@ -416,7 +266,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }));
             }
         };
-
         connectToCloud();
     }, []);
 
@@ -491,10 +340,19 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             let nextSplit = state.currentSplit;
 
             // If we completed the last workout, rotate!
+            // If we completed the last workout, rotate!
             if (state.completedToday) {
-                const splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
+                let splits: ('Push' | 'Pull' | 'Legs')[] = ['Push', 'Pull', 'Legs'];
+                if (!state.includeLegs) {
+                    splits = ['Push', 'Pull'];
+                }
                 const currentIdx = splits.indexOf(state.currentSplit as any);
-                nextSplit = currentIdx !== -1 ? splits[(currentIdx + 1) % splits.length] : 'Push';
+                // If current split is not in the valid list (e.g. was Legs but now disabled), default to first (Push)
+                if (currentIdx === -1) {
+                    nextSplit = splits[0];
+                } else {
+                    nextSplit = splits[(currentIdx + 1) % splits.length];
+                }
             }
 
             // Update state first
@@ -581,10 +439,25 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const getAvailableExercises = (eqString: string, category?: string) => {
         // AI PROFILE MODE (Primary)
         if (state.userEquipmentProfile && state.availableExerciseNames.length > 0) {
-            let uniqueExercises = allExercises.filter(ex => state.availableExerciseNames.includes(ex.name));
+            let uniqueExercises = allExercises.filter(ex =>
+                state.availableExerciseNames.includes(ex.name) &&
+                !state.excludedExercises.includes(ex.name) // Filter excluded items from AI pool
+            );
 
             if (category && category !== 'Full Body') {
-                uniqueExercises = uniqueExercises.filter(ex => ex.category === category);
+                uniqueExercises = uniqueExercises.filter(ex => {
+                    const mg = ex.muscleGroup.toLowerCase();
+                    if (category === 'Arms') {
+                        return ['Biceps', 'Triceps', 'Forearms', 'Arms'].map(s => s.toLowerCase()).includes(mg);
+                    }
+                    if (category === 'Back') {
+                        return ['lats', 'middle back', 'lower back', 'traps', 'back'].includes(mg);
+                    }
+                    if (category === 'Legs') {
+                        return ['quadriceps', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors', 'legs', 'quads'].includes(mg);
+                    }
+                    return ex.category === category || ex.muscleGroup === category;
+                });
             }
 
             // Console log to debug
@@ -603,9 +476,40 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
 
         const filtered = uniqueExercises.filter(ex => {
+            // GLOBAL FILTER: Excluded Exercises
+            if (state.excludedExercises.includes(ex.name)) return false;
+
+            // GLOBAL FILTER: Exclude Legs if disabled
+            if (!state.includeLegs) {
+                const isLegs = ex.category === 'Legs' ||
+                    ['quads', 'hamstrings', 'calves', 'glutes', 'legs', 'adductors', 'abductors'].includes(ex.muscleGroup.toLowerCase());
+                if (isLegs) return false;
+            }
+
             // Filter by Category (Split)
-            if (category && ex.category !== category && category !== 'Full Body') {
-                return false;
+            if (category && category !== 'Full Body') {
+                if (category === 'Arms') {
+                    // Special Case: Arms includes Biceps, Triceps, Forearms
+                    const isArm = ['Biceps', 'Triceps', 'Forearms', 'Arms'].includes(ex.muscleGroup);
+                    if (!isArm) return false;
+                } else if (category === 'Back') {
+                    // FIX: Back includes Lats, Middle Back, Lower Back, Traps
+                    // Case insensitive check just in case
+                    const mg = ex.muscleGroup.toLowerCase();
+                    const isBack = ['lats', 'middle back', 'lower back', 'traps', 'back'].includes(mg);
+                    if (!isBack && ex.category !== 'Pull') return false; // Also allow Pull category if muscle is ambiguous?
+                    if (!isBack) return false;
+                } else if (category === 'Legs') {
+                    const mg = ex.muscleGroup.toLowerCase();
+                    const isLegs = ['quadriceps', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors', 'legs', 'quads'].includes(mg);
+                    if (!isLegs) return false;
+                } else {
+                    // Check if filter matches Category (Split) OR Muscle Group (Focus)
+                    // e.g. category='Shoulders' matches ex.muscleGroup='Shoulders' (even if ex.category='Push')
+                    if (ex.category !== category && ex.muscleGroup !== category) {
+                        return false;
+                    }
+                }
             }
 
             // Smart Equipment Check
@@ -634,40 +538,36 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const focusToUse = focusOverride || state.focusArea;
         const apiKey = state.openaiApiKey;
 
+        console.log(`💪 generatingWorkout... Split: ${splitToUse}, Focus: ${focusToUse}, Override: ${focusOverride}`);
+
         // --- AI GENERATION MODE ---
         if (apiKey && state.userEquipmentProfile) {
             console.log('🤖 Generating AI Workout...');
             try {
-                // Get available names for context
-                // MERGE: Standard available + Custom Exercises
-                const customNames = state.customExercises.map(c => c.name);
-                let whitelist = state.availableExerciseNames.length > 0
-                    ? state.availableExerciseNames
-                    : allExercises.map(e => e.name);
+                // CRITICAL FIX: Do NOT pre-filter whitelist by Split if using AI.
+                // Allow AI to select from ALL equipment-valid exercises to handle Focus overrides properly.
+                const equipmentValidExercises = getAvailableExercises(state.equipment, 'Full Body');
 
-                // Ensure custom exercises are in the whitelist
-                whitelist = [...new Set([...whitelist, ...customNames])];
+                // If focus is active, we can prioritize strict focus items too, but providing valid split items is the most important guardrail.
+                const validNames = equipmentValidExercises.map(e => e.name);
 
-                // If whitelist is empty despite profile, try to generate it on the fly
-                if (whitelist.length === 0 && state.userEquipmentProfile) {
-                    const generatedWhitelist = await SmartParser.filterExercisesByProfile(state.openaiApiKey, state.userEquipmentProfile, allExercises);
-                    if (generatedWhitelist.length > 0) {
-                        whitelist = generatedWhitelist;
-                        setState(prev => ({ ...prev, availableExerciseNames: whitelist }));
-                    }
-                }
+                // Ensure custom exercises are included if they match the split
+                // We should also include ALL custom exercises here and let AI decide?
+                // Yes, simplify to include all custom exercises that might be relevant.
+                const validCustomNames = state.customExercises.map(c => c.name);
+
+                const finalWhitelist = [...new Set([...validNames, ...validCustomNames])];
 
                 const aiResult = await SmartParser.generateAIWorkout(
                     state.openaiApiKey,
                     splitToUse,
                     focusToUse,
                     state.userEquipmentProfile,
-                    whitelist.length > 0 ? whitelist : allExercises.map(e => e.name), // Fallback to all if whitelist fails
+                    finalWhitelist, // Pass STRICTLY filtered list
                     state.favorites // PASS FAVORITES
                 );
 
                 const aiPlan = aiResult.exercises;
-                const strategy = aiResult.strategy;
 
                 if (aiPlan.length > 0) {
                     // Map AI plan to Exercise objects
@@ -728,8 +628,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...prev,
                         dailyWorkout: mappedWorkout,
                         lastWorkoutDate: new Date().toDateString(),
-                        currentSplit: splitToUse as any,
-                        strategyInsight: strategy // Save strategy
+                        currentSplit: splitToUse as any
                     }));
                     return; // EXIT EARLY
                 }
@@ -748,11 +647,30 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Since I am replacing lines 560-702, I need to ensure I don't delete the fallback logic.
             // I will paste the original logic below.
 
-            // Base Slots
-            let slots: { type: string, muscle: string, count: number }[] = [];
+            // --- FOCUS AREA OVERRIDE LOGIC ---
+            if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
+                // STRICT FOCUS: User wants ONLY this muscle group
+                if (focusToUse === 'Arms') {
+                    return [
+                        { type: 'Isolation', muscle: 'Biceps', count: 3 },
+                        { type: 'Isolation', muscle: 'Triceps', count: 3 },
+                        { type: 'Compound', muscle: 'Shoulders', count: 1 }, // Throw in a compound that hits arms
+                        { type: 'Isolation', muscle: 'Forearms', count: 1 }  // Optional
+                    ];
+                }
 
+                // We create slots specifically for this focus, fitting the split logic implicitly
+                // (e.g. if Focus=Arms and Split=Push, this asks for Arms, and logic matches Triceps)
+                return [
+                    { type: 'Compound', muscle: focusToUse, count: 3 },
+                    { type: 'Isolation', muscle: focusToUse, count: 3 },
+                    { type: 'Compound', muscle: focusToUse, count: 2 } // total 8
+                ];
+            }
+
+            // Standard Balanced Slots
             if (split === 'Push') {
-                slots = [
+                return [
                     { type: 'Compound', muscle: 'Chest', count: 2 },
                     { type: 'Compound', muscle: 'Shoulders', count: 2 },
                     { type: 'Isolation', muscle: 'Chest', count: 1 },
@@ -760,14 +678,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     { type: 'Isolation', muscle: 'Triceps', count: 2 },
                 ];
             } else if (split === 'Pull') {
-                slots = [
+                return [
                     { type: 'Compound', muscle: 'Back', count: 3 },
                     { type: 'Isolation', muscle: 'Rear Delts', count: 1 },
                     { type: 'Isolation', muscle: 'Biceps', count: 3 },
                     { type: 'Isolation', muscle: 'Traps', count: 1 },
                 ];
             } else if (split === 'Legs') {
-                slots = [
+                return [
                     { type: 'Compound', muscle: 'Quads', count: 2 },
                     { type: 'Compound', muscle: 'Hamstrings', count: 2 },
                     { type: 'Compound', muscle: 'Legs', count: 1 },
@@ -777,7 +695,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 ];
             } else {
                 // Full Body
-                slots = [
+                return [
                     { type: 'Compound', muscle: 'Legs', count: 2 },
                     { type: 'Compound', muscle: 'Chest', count: 2 },
                     { type: 'Compound', muscle: 'Back', count: 2 },
@@ -785,26 +703,27 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     { type: 'Isolation', muscle: 'Arms', count: 1 },
                 ];
             }
-
-            // --- FOCUS AREA OVERRIDE LOGIC ---
-            if (focusToUse && focusToUse !== 'Default') {
-                // Strategy: Add 2 extra slots for the focus area
-                slots.unshift({ type: 'Compound', muscle: focusToUse, count: 1 });
-                slots.push({ type: 'Isolation', muscle: focusToUse, count: 1 });
-            }
-
-            return slots;
         };
 
         const selectedExercises: Exercise[] = [];
         const usedNames = new Set<string>();
         const slots = getSlots(splitToUse);
         const equipmentToUse = focusToUse === 'Bodyweight' ? 'Bodyweight' : state.equipment;
+
+        // Determine effective category to filter by
+        // If Focus Area is set (and not Default/Bodyweight which are generic), use it as the category override.
+        // Bodyweight is handled by 'equipmentToUse' and doesn't map to a category strictly.
+        // But if Focus is Chest/Back/Legs/Arms/Shoulders, use that.
+        let categoryFilter = splitToUse;
+        if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
+            categoryFilter = focusToUse;
+        }
+
         // Use legacy or new getAvailableExercises? 
         // We modified getAvailableExercises to check for profile. 
         // If profile exists, it uses profile. If not, it uses eqString.
         // So passing equipmentToUse works for both cases (it is ignored if profile active).
-        const availableForSplit = getAvailableExercises(equipmentToUse, 'Full Body');
+        const availableForSplit = getAvailableExercises(equipmentToUse, categoryFilter);
 
         // 2. Fill Slots
         slots.forEach(slot => {
@@ -835,12 +754,20 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 3. Fallback Fill
         if (selectedExercises.length < 8) {
-            const remaining = getAvailableExercises(equipmentToUse, splitToUse)
+            console.log('⚠️ Primary slots generation failed or incomplete. Using fallback fill.');
+            // ERROR FIX: Use categoryFilter here too! Otherwise it reverts to 'Legs' (splitToUse)
+            const fallbackPool = getAvailableExercises(equipmentToUse, categoryFilter);
+            console.log(`Fallback Pool Size for ${categoryFilter}: ${fallbackPool.length}`);
+
+            const remaining = fallbackPool
                 .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
                 .sort(() => 0.5 - Math.random())
                 .slice(0, 8 - selectedExercises.length);
+
             selectedExercises.push(...remaining);
         }
+
+        console.log(`✅ Final Workout Generated: ${selectedExercises.length} exercises.`);
 
         setState(prev => ({
             ...prev,
@@ -856,44 +783,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // generateWorkout(); 
     };
 
-    const logWorkout = async () => {
-        const today = new Date().toISOString();
 
-        // Only log if at least one exercise is completed
-        const completedExercises = state.dailyWorkout.filter(ex => ex.completed);
-        if (completedExercises.length === 0) return;
-
-
-        // Actually, let's log the whole workout state so we know what was skipped.
-        const historyEntry = {
-            date: today,
-            split: state.currentSplit,
-            focusArea: state.focusArea,
-            exercises: completedExercises // Only save COMPLETED exercises
-        };
-
-        const newHistory = [...state.history, historyEntry];
-
-        setState(prev => ({
-            ...prev,
-            history: newHistory,
-            completedToday: true
-            // Don't rotate split yet! Wait for next day.
-        }));
-
-        // Sync to Cloud immediately
-        if (state.connectionStatus === 'connected') {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                await supabase.from('workout_history').insert({
-                    user_id: user.id,
-                    date: today,
-                    split: state.currentSplit,
-                    exercises: state.dailyWorkout
-                });
-            }
-        }
-    };
 
     const refreshWorkout = () => {
         generateWorkout();
@@ -944,18 +834,110 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
     };
 
-    const toggleExerciseCompletion = (exerciseName: string) => {
+    // SYNC HISTORY EFFECT
+    // Automatically syncs today's history to Supabase whenever it changes
+    useEffect(() => {
+        if (!state.completedToday && state.history.length === 0) return; // Skip initial empty
+
+        const syncToday = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const todayStr = new Date().toDateString();
+            const todayISO = new Date().toISOString().split('T')[0];
+
+            // Find today's entry in local state
+            const todayEntry = state.history.find(h => new Date(h.date).toDateString() === todayStr);
+
+            try {
+                // Check for existing DB row
+                const { data: existingRows } = await supabase
+                    .from('workout_history')
+                    .select('id, date')
+                    .eq('user_id', user.id)
+                    .like('date', `${todayISO}%`);
+
+                if (todayEntry) {
+                    // We have data to save
+                    if (existingRows && existingRows.length > 0) {
+                        // UPDATE
+                        await supabase.from('workout_history').update({
+                            exercises: todayEntry.exercises,
+                            split: todayEntry.split,
+                            focusArea: todayEntry.focusArea || 'Default'
+                        }).eq('id', existingRows[0].id);
+                        console.log('✅ History Updated (Auto-Sync)');
+                    } else {
+                        // INSERT
+                        await supabase.from('workout_history').insert({
+                            user_id: user.id,
+                            date: todayEntry.date, // Use the ISO string from the object
+                            split: todayEntry.split,
+                            focusArea: todayEntry.focusArea || 'Default',
+                            exercises: todayEntry.exercises
+                        });
+                        console.log('✅ History Inserted (Auto-Sync)');
+                    }
+                } else {
+                    // No local entry for today? (e.g. all unchecked). Delete if exists in DB.
+                    if (existingRows && existingRows.length > 0) {
+                        await supabase.from('workout_history').delete().eq('id', existingRows[0].id);
+                    }
+                }
+            } catch (err) {
+                console.error("History Sync Error:", err);
+            }
+        };
+
+        const timeout = setTimeout(syncToday, 1000); // 1s Debounce
+        return () => clearTimeout(timeout);
+    }, [state.history]);
+
+    const toggleExerciseCompletion = (exerciseId: string) => {
         setState(prev => {
+            // 1. Update Daily Workout - Match by ID
             const newDaily = prev.dailyWorkout.map(ex =>
-                ex.name === exerciseName ? { ...ex, completed: !ex.completed } : ex
+                (ex.id === exerciseId || ex.name === exerciseId) ? { ...ex, completed: !ex.completed } : ex
             );
             const hasCompleted = newDaily.some(ex => ex.completed);
+
+            // 2. Update History (Purely Local Calculation)
+            const todayStr = new Date().toDateString();
+            const existingHistoryIndex = prev.history.findIndex(h => new Date(h.date).toDateString() === todayStr);
+            const completedList = newDaily.filter(ex => ex.completed);
+
+            let newHistory = [...prev.history];
+
+            if (completedList.length > 0) {
+                if (existingHistoryIndex >= 0) {
+                    // Update
+                    newHistory[existingHistoryIndex] = {
+                        ...newHistory[existingHistoryIndex],
+                        exercises: completedList,
+                        focusArea: prev.focusArea || 'Default'
+                    };
+                } else {
+                    // Create
+                    newHistory.push({
+                        date: new Date().toISOString(),
+                        split: prev.currentSplit,
+                        focusArea: prev.focusArea || 'Default',
+                        exercises: completedList
+                    });
+                }
+            } else {
+                // Remove
+                if (existingHistoryIndex >= 0) {
+                    newHistory.splice(existingHistoryIndex, 1);
+                }
+            }
 
             return {
                 ...prev,
                 dailyWorkout: newDaily,
                 completedToday: hasCompleted,
-                lastWorkoutDate: hasCompleted ? new Date().toDateString() : prev.lastWorkoutDate
+                lastWorkoutDate: hasCompleted ? new Date().toDateString() : (prev.history.length > 0 ? prev.history[prev.history.length - 1].date : null),
+                history: newHistory
             };
         });
     };
@@ -1090,17 +1072,17 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return allExercises;
     };
 
-    const excludeExercise = (exerciseName: string) => {
-        setState(prev => {
-            const newExcluded = [...prev.excludedExercises, exerciseName];
+    const excludeExercise = async (exerciseName: string) => {
+        // 1. Calculate new state immediately (Optimistic)
+        let newExcluded: string[] = [];
 
-            // Replace in current workout if present
+        setState(prev => {
+            newExcluded = [...prev.excludedExercises, exerciseName];
             const currentWorkout = [...prev.dailyWorkout];
             const index = currentWorkout.findIndex(ex => ex.name === exerciseName);
 
             if (index !== -1) {
                 const removedEx = currentWorkout[index];
-                // Find replacement
                 const candidates = getAvailableExercises(prev.equipment)
                     .filter(ex =>
                         !newExcluded.includes(ex.name) &&
@@ -1109,40 +1091,55 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     );
 
                 if (candidates.length > 0) {
-                    // Pick random
-                    const replacement = candidates[Math.floor(Math.random() * candidates.length)];
-                    currentWorkout[index] = replacement;
+                    currentWorkout[index] = candidates[Math.floor(Math.random() * candidates.length)];
                 } else {
-                    // If no direct muscle match, try same category/split? Or just remove?
-                    // Let's try to keep count same if possible, or just leave it empty?
-                    // For now, if no replacement, we might just have to shrink the workout or pick *any* available.
-                    // Let's pick any available that fits the split.
                     const fallback = getAvailableExercises(prev.equipment, prev.currentSplit)
                         .filter(ex => !newExcluded.includes(ex.name) && !currentWorkout.some(w => w.name === ex.name));
 
                     if (fallback.length > 0) {
                         currentWorkout[index] = fallback[Math.floor(Math.random() * fallback.length)];
                     } else {
-                        // Worst case, remove it
                         currentWorkout.splice(index, 1);
                     }
                 }
             }
-
-            return {
-                ...prev,
-                excludedExercises: newExcluded,
-                dailyWorkout: currentWorkout
-            };
+            return { ...prev, excludedExercises: newExcluded, dailyWorkout: currentWorkout };
         });
+
+        // 2. Persist to DB
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            // We use 'newExcluded' but we need to rely on the functional update being sync-ish enough? 
+            // Variable 'newExcluded' captured in closure of setState might not work if setState runs later?
+            // Actually, difficult to save "newExcluded" if calculated inside setState.
+            // Better pattern: calculate first, then set.
+
+            // Safest: Use previous state + new item.
+            await supabase.from('user_settings').upsert({
+                id: user.id,
+                excluded_exercises: [...state.excludedExercises, exerciseName]
+            });
+        }
     };
 
-    const restoreExercise = (exerciseName: string) => {
+    const restoreExercise = async (exerciseName: string) => {
+        const newExcluded = state.excludedExercises.filter(n => n !== exerciseName);
+
         setState(prev => ({
             ...prev,
-            excludedExercises: prev.excludedExercises.filter(n => n !== exerciseName)
+            excludedExercises: newExcluded
         }));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('user_settings').upsert({
+                id: user.id,
+                excluded_exercises: newExcluded
+            });
+        }
     };
+
+
 
     // AI PROFILE UPDATE
     const addCustomExercise = async (prompt: string) => {
@@ -1202,12 +1199,20 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 1. Update Profile String State
         setState(prev => ({ ...prev, userEquipmentProfile: profile }));
-        localStorage.setItem('user_equipment_profile', profile);
+
+        // 1b. Save Profile to Supabase
+        const { data: { user } } = await supabase.auth.getUser();
 
         if (!profile.trim()) {
             // Clear whitelist if empty
             setState(prev => ({ ...prev, availableExerciseNames: [] }));
-            localStorage.setItem('available_exercise_names', '[]');
+            if (user) {
+                await supabase.from('user_settings').upsert({
+                    id: user.id,
+                    user_equipment_profile: profile,
+                    available_exercise_names: []
+                });
+            }
             return;
         }
 
@@ -1217,24 +1222,78 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 3. Update Whitelist State
         setState(prev => ({ ...prev, availableExerciseNames: whitelist }));
-        localStorage.setItem('available_exercise_names', JSON.stringify(whitelist));
 
-        // 4. Regenerate Workout with new pool
-        // setTimeout(() => generateWorkout(state.currentSplit), 100);
+        // 4. Save Profile AND Whitelist to Supabase
+        if (user) {
+            console.log('Saving profile to DB...', { profile, whitelistCount: whitelist.length });
+            const { error } = await supabase.from('user_settings').upsert({
+                id: user.id,
+                user_equipment_profile: profile,
+                available_exercise_names: whitelist
+            });
+            if (error) console.error("Failed to save profile/whitelist to DB:", error);
+            else console.log("✅ Profile saved to DB successfully.");
+        } else {
+            console.warn("⚠️ Cannot save profile: User not logged in.");
+        }
     };
 
     const setOpenaiApiKey = async (key: string) => {
-        // 1. Update State & Local
+        // 1. Update State
         setState(prev => ({ ...prev, openaiApiKey: key }));
-        localStorage.setItem('openai_api_key', key);
+        // Removed localStorage.setItem
 
         // 2. Force Immediate Save to DB
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-            const { error } = await supabase.from('user_settings').update({ openai_api_key: key }).eq('id', user.id);
+            const { error } = await supabase.from('user_settings').upsert({ id: user.id, openai_api_key: key });
             if (error) console.error("Force Save Key Failed:", error);
             else console.log("Force Save Key Success");
         }
+    };
+
+    const toggleLegs = async (enabled: boolean) => {
+        // 1. Optimistic Update
+        setState(prev => {
+            let newSplit = prev.currentSplit;
+            let newFocus = prev.focusArea;
+
+            if (!enabled) {
+                // If disabling legs, and we are currently on Legs split, switch to Push
+                if (newSplit === 'Legs') {
+                    newSplit = 'Push';
+                }
+                // If Focus is Legs or Quads/Hamstrings, reset to Default
+                if (['Legs', 'Quads', 'Hamstrings', 'Calves', 'Glutes'].includes(newFocus)) {
+                    newFocus = 'Default';
+                }
+            }
+
+            return {
+                ...prev,
+                includeLegs: enabled,
+                currentSplit: newSplit,
+                focusArea: newFocus
+            };
+        });
+
+        // 2. Persist to DB
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('user_settings').upsert({ id: user.id, include_legs: enabled });
+        }
+
+        // 3. Trigger Workout Regen
+        setTimeout(() => {
+            // Re-evaluate current state logic (simplified)
+            let nextSplit = state.currentSplit;
+            if (!enabled && nextSplit === 'Legs') nextSplit = 'Push';
+
+            let nextFocus = state.focusArea;
+            if (!enabled && ['Legs', 'Quads', 'Hamstrings', 'Calves', 'Glutes'].includes(nextFocus)) nextFocus = 'Default';
+
+            generateWorkout(nextSplit, nextFocus);
+        }, 50);
     };
 
     const testPersistence = async () => {
@@ -1253,7 +1312,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...state,
         allExercises: getAllExercises(),
         updateEquipment,
-        logWorkout,
         refreshWorkout,
         getAvailableExercises,
         excludeExercise,
@@ -1269,7 +1327,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteCustomExercise,
         updateUserEquipmentProfile,
         setOpenaiApiKey,
-        testPersistence
+        testPersistence,
+        toggleLegs
     };
 
     return (
