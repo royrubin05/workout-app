@@ -270,17 +270,17 @@ const ExerciseItem = ({
             value={exercise}
             dragListener={false}
             dragControls={controls}
-            className={`touch-none select-none ${exercise.completed ? 'grayscale opacity-60' : ''}`}
+            className={`select-none ${exercise.completed ? 'grayscale opacity-60' : ''}`}
         >
             <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, height: 0 }}
-                className={`relative glass-card p-4 flex items-center gap-4 group ${exercise.completed ? 'opacity-50 grayscale' : ''}`}
+                className={`relative glass-card p-3 flex gap-3 group ${exercise.completed ? 'opacity-50 grayscale' : ''}`}
             >
-                {/* Drag Handle Area */}
+                {/* Drag Handle Area - Expanded touch target */}
                 <div
-                    className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center cursor-grab active:cursor-grabbing z-10"
+                    className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-start pl-2 cursor-grab active:cursor-grabbing z-10"
                     onPointerDown={handlePointerDown}
                     onPointerUp={handlePointerUp}
                     onPointerLeave={handlePointerUp}
@@ -289,90 +289,77 @@ const ExerciseItem = ({
                     <GripVertical size={16} className="text-slate-600" />
                 </div>
 
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                    {/* Thumbnail - Bigger now (w-20) */}
+                {/* Main Content Layout */}
+                <div className="flex gap-3 w-full pl-6">
+                    {/* Thumbnail */}
                     <div onClick={() => setPreviewImage(exercise)} className="shrink-0 cursor-pointer relative group/thumb" title="Click to view instructions">
                         {exercise.gifUrl ? (
                             <img
                                 src={exercise.gifUrl}
                                 alt={exercise.name}
-                                className={`w-20 h-20 rounded-lg object-cover bg-slate-800 transition-all ${exercise.completed ? 'opacity-50 grayscale' : 'group-hover/thumb:ring-2 ring-indigo-500'}`}
+                                className={`w-16 h-16 rounded-lg object-cover bg-slate-800 transition-all ${exercise.completed ? 'opacity-50 grayscale' : 'group-hover/thumb:ring-2 ring-indigo-500'}`}
                                 loading="lazy"
                             />
                         ) : (
-                            <div className={`w-20 h-20 rounded-lg bg-slate-800 flex items-center justify-center text-xl text-slate-500 font-bold ${exercise.completed ? 'opacity-50' : 'group-hover/thumb:ring-2 ring-indigo-500'}`}>
+                            <div className={`w-16 h-16 rounded-lg bg-slate-800 flex items-center justify-center text-lg text-slate-500 font-bold ${exercise.completed ? 'opacity-50' : 'group-hover/thumb:ring-2 ring-indigo-500'}`}>
                                 {exercise.name.slice(0, 2)}
                             </div>
                         )}
                     </div>
 
-                    {/* Details */}
-                    <div className="flex-1 min-w-0" onClick={() => setPreviewImage(exercise)} title="Click to view instructions">
-                        <h3 className={`text-sm sm:text-base font-bold text-white truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
-                            {exercise.name}
-                        </h3>
-                        {/* Muscle/Equipment Badge */}
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 uppercase tracking-wider">
-                                {exercise.muscleGroup}
-                            </span>
-                            {exercise.equipment !== 'Bodyweight' && (
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-900/30 text-blue-300 border border-blue-800/30">
-                                    {exercise.equipment}
-                                </span>
-                            )}
-                            {exercise.isCustom && (
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-purple-900/30 text-purple-300 border border-purple-800/30 flex items-center gap-1">
-                                    AI <Zap size={8} />
-                                </span>
-                            )}
+                    {/* Right Column: Title on Top, Info+Actions below */}
+                    <div className="flex flex-col flex-1 min-w-0 justify-between py-0.5">
+                        {/* Top: Title */}
+                        <div className="w-full" onClick={() => setPreviewImage(exercise)}>
+                            <h3 className={`text-base font-bold text-white truncate ${exercise.completed ? 'line-through text-slate-500' : ''}`}>
+                                {exercise.name}
+                            </h3>
                         </div>
-                        <p className="text-xs text-slate-500 mt-2 truncate">
-                            {exercise.reps} {exercise.notes && `• ${exercise.notes}`}
-                        </p>
+
+                        {/* Bottom: Badges + Actions */}
+                        <div className="flex items-end justify-between gap-2 mt-1">
+                            {/* Badges / Info */}
+                            <div className="min-w-0 flex flex-col gap-1">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded w-fit bg-slate-800 text-slate-400 border border-slate-700 uppercase tracking-wider truncate max-w-[100px]">
+                                    {exercise.muscleGroup}
+                                </span>
+                                <p className="text-[10px] text-slate-500 truncate">
+                                    {exercise.reps}
+                                </p>
+                            </div>
+
+                            {/* Actions Row */}
+                            <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); replaceExercise(exercise.name); }}
+                                    className="p-1.5 text-slate-500 hover:text-blue-400 rounded-full hover:bg-white/5"
+                                >
+                                    <RefreshCw size={16} />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); toggleFavorite(exercise.name); }}
+                                    className={`p-1.5 rounded-full hover:bg-white/5 ${isFavorite ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}
+                                >
+                                    <Star size={16} fill={isFavorite ? "currentColor" : "none"} />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); excludeExercise(exercise.name); }}
+                                    className="p-1.5 text-slate-500 hover:text-red-500 rounded-full hover:bg-white/5"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                                <button
+                                    onClick={handleCompletion}
+                                    className={`p-1.5 rounded-full border border-transparent ${exercise.completed
+                                        ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                                        : 'bg-white/5 text-slate-400 hover:text-emerald-400'
+                                        }`}
+                                >
+                                    {exercise.completed ? <CheckCircle2 size={18} strokeWidth={3} /> : <Circle size={18} strokeWidth={2} />}
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-
-                {/* Right Side Actions */}
-                <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
-                    {/* Refresh / Swap */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); replaceExercise(exercise.name); }}
-                        className="p-2 text-slate-500 hover:text-blue-400 transition-colors rounded-full hover:bg-white/5"
-                        title="Swap with another exercise"
-                    >
-                        <RefreshCw size={18} />
-                    </button>
-
-                    {/* Favorite */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleFavorite(exercise.name); }}
-                        className={`p-2 transition-colors rounded-full hover:bg-white/5 ${isFavorite ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}
-                        title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                    >
-                        <Star size={18} fill={isFavorite ? "currentColor" : "none"} />
-                    </button>
-
-                    {/* Remove / Exclude */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); excludeExercise(exercise.name); }}
-                        className="p-2 text-slate-500 hover:text-red-500 transition-colors rounded-full hover:bg-white/5"
-                        title="Remove forever (Exclude)"
-                    >
-                        <Trash2 size={18} />
-                    </button>
-
-                    {/* Complete Button - Main Action */}
-                    <button
-                        onClick={handleCompletion}
-                        className={`p-2 rounded-full transition-all duration-300 border border-transparent ${exercise.completed
-                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
-                            : 'bg-white/5 text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30'
-                            }`}
-                        title={exercise.completed ? "Completed!" : "Mark as Complete"}
-                    >
-                        {exercise.completed ? <CheckCircle2 size={20} strokeWidth={3} /> : <Circle size={20} strokeWidth={2} />}
-                    </button>
                 </div>
             </motion.div>
         </Reorder.Item>
