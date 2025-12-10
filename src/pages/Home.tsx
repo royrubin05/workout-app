@@ -158,7 +158,7 @@ export const Home: React.FC = () => {
                 )}
 
                 <div className="flex flex-col">
-                    <h1 className="text-3xl font-bold text-white">Your {currentSplit} Workout</h1>
+                    <h1 className="text-3xl font-bold text-white">Your {currentSplit} Workout (Staging)</h1>
                     {focusArea !== 'Default' && <p className="text-slate-400 text-sm">Focus: {focusArea}</p>}
                 </div>
 
