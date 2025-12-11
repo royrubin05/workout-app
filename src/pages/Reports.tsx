@@ -54,7 +54,14 @@ export const Reports: React.FC = () => {
             // But activeEntry might have uncompleted ones? No, activeEntry filters before returning.
             // Wait, activeEntry definition: const completedExercises = dailyWorkout.filter(e => e.completed);
             // So we are good.
-            grouped[dateKey].exercises.push(...entry.exercises.filter((e: any) => e.completed));
+            // Add completed exercises, ensuring uniqueness by NAME for that day
+            const newExercises = entry.exercises.filter((e: any) => e.completed);
+            newExercises.forEach((newEx: any) => {
+                // Check if already in today's group
+                if (!grouped[dateKey].exercises.some(existing => existing.name === newEx.name)) {
+                    grouped[dateKey].exercises.push(newEx);
+                }
+            });
         });
 
         // Convert back to array

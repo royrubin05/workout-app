@@ -231,7 +231,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         const newIncludeLegs = settingsData?.include_legs !== undefined ? settingsData.include_legs : true;
 
                         const newSplit = settingsData?.current_split || prev.currentSplit;
-                        const newDailyWorkout = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
+                        const rawDaily = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
+                        // Sanitize: Deduplicate loaded workout
+                        const newDailyWorkout = (rawDaily || []).filter((ex: any, index: number, self: any[]) =>
+                            index === self.findIndex((t: any) => t.name === ex.name)
+                        );
                         const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
                         const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
                         const newFocusArea = 'Default';
@@ -908,7 +912,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // 2. Update History (Purely Local Calculation)
             const todayStr = new Date().toDateString();
             const existingHistoryIndex = prev.history.findIndex(h => new Date(h.date).toDateString() === todayStr);
-            const completedList = newDaily.filter(ex => ex.completed);
+            // Deduplicate the list for history
+            const completedList = newDaily.filter(ex => ex.completed).filter((ex, index, self) =>
+                index === self.findIndex((t) => t.name === ex.name)
+            );
 
             let newHistory = [...prev.history];
 
