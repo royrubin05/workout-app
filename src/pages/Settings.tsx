@@ -4,7 +4,6 @@ import { Dumbbell, Star, Plus, Trash2, CalendarDays, CheckCircle2, History as Hi
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 
-
 export const Settings: React.FC = () => {
     const {
         excludedExercises,
@@ -471,7 +470,7 @@ export const Settings: React.FC = () => {
             </div>
 
             <div className="text-center text-xs text-slate-600 font-medium pb-8">
-                v1.21
+                v1.22
             </div>
         </div>
     );
