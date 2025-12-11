@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Extend Exercise to include completion status
 export interface WorkoutExercise extends Exercise {
     completed?: boolean;
+    reps?: string;
 }
 
 
@@ -39,6 +40,8 @@ interface WorkoutState {
     includeLegs: boolean; // NEW: Option to include/exclude leg exercises
     isGenerating: boolean; // NEW: Global loading state for fun transitions
     generationStatus?: string; // NEW: Status message for loader (e.g. "Consulting AI...")
+    programMode: 'standard' | 'upper_body_cycle';
+    cycleIndex: number; // 0-3 for ABCD cycle
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -64,6 +67,7 @@ interface WorkoutContextType extends WorkoutState {
     setSplit: (split: string) => void;
     setIsGenerating: (isGenerating: boolean) => void;
     setGenerationStatus: (status: string | undefined) => void;
+    setProgramMode: (mode: 'standard' | 'upper_body_cycle') => void;
 }
 
 import { supabase } from '../services/supabase';
@@ -93,7 +97,9 @@ const initialState: WorkoutState = {
     availableExerciseNames: [],
     openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY || '', // Load from env if available
     includeLegs: true, // Default ON, removed localStorage
-    isGenerating: false
+    isGenerating: false,
+    programMode: 'upper_body_cycle', // Forced Default
+    cycleIndex: 0
 };
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -208,7 +214,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     // 2. Load Cloud Data (Settings & State)
                     const { data: settingsData } = await supabase
                         .from('user_settings')
-                        .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key, available_exercise_names, include_legs')
+                        .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key, available_exercise_names, include_legs, program_mode, cycle_index')
                         .eq('id', userId)
                         .single();
 
@@ -229,6 +235,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey || '';
                         const newAvailableExercises = settingsData?.available_exercise_names || prev.availableExerciseNames || [];
                         const newIncludeLegs = settingsData?.include_legs !== undefined ? settingsData.include_legs : true;
+
+                        // Force Upper Body Cycle as default/only mode
+                        const newProgramMode = 'upper_body_cycle';
+                        const newCycleIndex = settingsData?.cycle_index !== undefined ? settingsData.cycle_index : 0;
 
                         const newSplit = settingsData?.current_split || prev.currentSplit;
                         const rawDaily = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
@@ -255,6 +265,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             openaiApiKey: newApiKey,
                             availableExerciseNames: newAvailableExercises,
                             includeLegs: newIncludeLegs,
+                            programMode: newProgramMode,
+                            cycleIndex: newCycleIndex,
                             currentSplit: newSplit,
                             dailyWorkout: newDailyWorkout,
                             lastWorkoutDate: newLastDate,
@@ -287,7 +299,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (!user) return;
 
             // Upsert Settings
-            // Upsert Settings
             const { error: syncError } = await supabase
                 .from('user_settings')
                 .upsert({
@@ -303,6 +314,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     completed_today: state.completedToday,
                     focus_area: state.focusArea,
                     openai_api_key: state.openaiApiKey,
+                    include_legs: state.includeLegs,
+                    program_mode: state.programMode,
+                    cycle_index: state.cycleIndex,
                     available_exercise_names: state.availableExerciseNames,
                     updated_at: new Date().toISOString()
                 });
@@ -547,7 +561,103 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         let splitToUse = split || state.currentSplit;
         let focusToUse = focus || state.focusArea;
 
-        // --- SPLIT ROTATION ---
+        // --- NEW PROGRAM LOGIC ---
+        if (state.programMode === 'upper_body_cycle' && !focus && !split) {
+            // Cycle Logic (A, B, C, D)
+            const cyclePhase = state.cycleIndex % 4; // 0-3
+            const phaseName = ['Push (Strength)', 'Pull (Hypertrophy)', 'Push (Volume)', 'Pull (Variation)'][cyclePhase];
+
+            const selectedExercises: WorkoutExercise[] = [];
+            const equipmentToUse = state.equipment;
+            const available = getAvailableExercises(equipmentToUse, 'Full Body'); // Get everything to filter manually
+
+            // Get Recent Exercises (Last 3 Workouts) to enforce variety
+            const recentHistory = state.history.slice(-3);
+            const recentNames = new Set(recentHistory.flatMap(h => h.exercises.map(e => e.name)));
+
+            const pick = (criteria: (ex: Exercise) => boolean, count: number, reps: string) => {
+                let candidates = available.filter(criteria).filter(ex => !selectedExercises.find(s => s.name === ex.name));
+
+                // Sort by Priority:
+                // 1. (Not Recent) + (Favorite)
+                // 2. (Not Recent) + (Not Favorite)
+                // 3. (Recent) + (Favorite)  <- For when we run out of fresh moves
+                // 4. (Recent) + (Not Favorite)
+
+                candidates.sort((a, b) => {
+                    const isFavA = state.favorites.includes(a.name);
+                    const isFavB = state.favorites.includes(b.name);
+                    const isRecentA = recentNames.has(a.name);
+                    const isRecentB = recentNames.has(b.name);
+
+                    // Assign scores (Higher is better)
+                    const scoreA = (isRecentA ? 0 : 2) + (isFavA ? 1 : 0);
+                    const scoreB = (isRecentB ? 0 : 2) + (isFavB ? 1 : 0);
+
+                    if (scoreA > scoreB) return -1;
+                    if (scoreA < scoreB) return 1;
+
+                    return 0.5 - Math.random();
+                });
+
+                candidates.slice(0, count).forEach(ex => {
+                    selectedExercises.push({ ...ex, reps });
+                });
+            };
+
+            const has = (name: string, part: string | string[]) => {
+                const parts = Array.isArray(part) ? part : [part];
+                return parts.some(p => name.toLowerCase().includes(p.toLowerCase()));
+            };
+
+            if (cyclePhase === 0) { // A: Push Strength
+                // 1. Flat Horizontal Press (5-8)
+                pick(ex => ex.category === 'Push' && has(ex.name, ['Bench', 'Floor']) && !has(ex.name, 'Incline') && ex.type === 'Compound', 1, '5-8');
+                // 2. Vertical Press (5-8)
+                pick(ex => ex.category === 'Push' && has(ex.name, ['Overhead', 'Arnold', 'Military']) && ex.type === 'Compound', 1, '5-8');
+                // 3. Tricep Extension (Heavy)
+                pick(ex => ex.category === 'Push' && ex.muscleGroup === 'Triceps' && has(ex.name, ['Skull', 'Extension', 'Close Grip']), 1, '8-10');
+                // Fill remaining
+                if (selectedExercises.length < 5) pick(ex => ex.category === 'Push', 5 - selectedExercises.length, '8-12');
+            }
+            else if (cyclePhase === 1) { // B: Pull Hypertrophy
+                // 1. Vertical Pull (High Volume)
+                pick(ex => ex.category === 'Pull' && has(ex.name, ['Pull-up', 'Chin-up', 'Lat Pulldown']) && !has(ex.name, 'Neutral'), 1, '10-15');
+                // 2. Horizontal Row (Controlled)
+                pick(ex => ex.category === 'Pull' && has(ex.name, ['Seated Row', 'Cable', 'Machine']), 1, '10-15');
+                // 3. Bicep Curl
+                pick(ex => ex.category === 'Pull' && ex.muscleGroup === 'Biceps', 1, '10-15');
+                // 4. Rear Delt
+                pick(ex => ex.category === 'Pull' && has(ex.name, ['Face Pull', 'Rear Delt']), 1, '12-15');
+                if (selectedExercises.length < 5) pick(ex => ex.category === 'Pull', 5 - selectedExercises.length, '10-12');
+            }
+            else if (cyclePhase === 2) { // C: Push Volume
+                // 1. Incline Press
+                pick(ex => ex.category === 'Push' && has(ex.name, 'Incline'), 1, '10-15');
+                // 2. Vertical Press (Accessory)
+                pick(ex => ex.category === 'Push' && has(ex.name, ['Dumbbell Press', 'Machine Press']), 1, '10-15');
+                // 3. Lateral Raise - Note: Lateral Raises are 'Push' in our data
+                pick(ex => ex.category === 'Push' && has(ex.name, 'Lateral'), 1, '12-15');
+                // 4. Tricep Pushdown
+                pick(ex => ex.category === 'Push' && has(ex.name, 'Pushdown'), 1, '12-15');
+                if (selectedExercises.length < 5) pick(ex => ex.category === 'Push', 5 - selectedExercises.length, '10-15');
+            }
+            else if (cyclePhase === 3) { // D: Pull Variation
+                // 1. Heavy Row
+                pick(ex => ex.category === 'Pull' && has(ex.name, ['Barbell Row', 'T-Bar', 'Pendlay', 'Deadlift']), 1, '8-12');
+                // 2. Neutral Vertical Pull
+                pick(ex => ex.category === 'Pull' && (has(ex.name, 'Neutral') || has(ex.name, 'Hammer')), 1, '8-12');
+                // 3. Hammer Curl
+                pick(ex => ex.category === 'Pull' && has(ex.name, 'Hammer Curl'), 1, '10-12');
+                // 4. Upper Back/Shrug
+                pick(ex => ex.category === 'Pull' && has(ex.name, ['Shrug', 'Face Pull']), 1, '10-12');
+                if (selectedExercises.length < 5) pick(ex => ex.category === 'Pull', 5 - selectedExercises.length, '8-12');
+            }
+
+            return { selectedExercises, splitToUse: `Cycle: ${phaseName}` };
+        }
+
+        // --- STANDARD SPLIT ROTATION ---
         if (!split && !focus) {
             const splits = ['Push', 'Pull'];
             if (state.includeLegs) splits.push('Legs');
@@ -901,6 +1011,24 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return () => clearTimeout(timeout);
     }, [state.history]);
 
+    // SYNC PROGRAM SETTINGS EFFECT
+    useEffect(() => {
+        if (!isLoaded) return;
+        const syncSettings = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                await supabase.from('user_settings').upsert({
+                    id: user.id,
+                    program_mode: state.programMode,
+                    cycle_index: state.cycleIndex
+                });
+            }
+        };
+        // Debounce slightly to avoid rapid updates if multiple state changes happen
+        const t = setTimeout(syncSettings, 1000);
+        return () => clearTimeout(t);
+    }, [state.programMode, state.cycleIndex, isLoaded]);
+
     const toggleExerciseCompletion = (exerciseId: string) => {
         setState(prev => {
             // 1. Update Daily Workout - Match by ID
@@ -987,6 +1115,29 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     newState.history = [...prev.history, historyEntry];
                     newState.completedToday = true;
                     newState.lastSyncTime = null;
+
+                    // AUTO-ADVANCE CYCLE Logic
+                    if (prev.programMode === 'upper_body_cycle') {
+                        newState.cycleIndex = (prev.cycleIndex + 1) % 4;
+                        // Also sync this new index to DB immediately?
+                        // Ideally state sync effect handles it, but let's be safe later.
+                        // Actually, the main syncToCloud effect watches state changes if we add cycleIndex to dependency?
+                        // No, syncToCloud effect runs once on mount or manual.
+                        // We need to ensure persistence. The `syncToCloud` effect doesn't exist as a watcher.
+                        // We rely on specific actions to update DB or the one-off sync.
+                        // We must update the DB here or ensure a sync effect exists.
+                        // Looking at code, there IS a `syncToCloud` inside `useEffect` line 282? No, that runs once.
+                        // Ah, line 938 syncs HISTORY.
+                        // Line 282 is "Sync State changes to Cloud" but it has `[]` dependency?
+                        // Wait, looking at line 282 in previous `view_file` (Step 586):
+                        // `useEffect(() => { ... }, []);` -> It only runs ONCE.
+                        // This means `user_settings` are NOT automatically synced on state change currently?
+                        // Let's re-read line 282 from Step 586. 
+                        // Yes, it has `[]` dependency.
+                        // BUT, `updateUserEquipmentProfile` and `toggleLegs` manually call upsert.
+                        // So I should manually call upsert here or add a useEffect watcher for cycleIndex.
+                        // I'll stick to updating state here, and I'll add a `useEffect` watcher for `programMode` and `cycleIndex` to auto-persist them.
+                    }
                 }
                 return newState;
             });
@@ -1377,6 +1528,31 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setState(prev => ({ ...prev, generationStatus: status }));
     };
 
+    const setProgramMode = async (mode: 'standard' | 'upper_body_cycle') => {
+        // 1. Show Fun Loader
+        setIsGenerating(true);
+
+        // 2. Wait for animation
+        setTimeout(async () => {
+            // 3. Update State
+            setState(prev => ({ ...prev, programMode: mode }));
+
+            // 4. Persist to DB
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                await supabase.from('user_settings').upsert({ id: user.id, program_mode: mode });
+            }
+
+            // 5. Trigger Regeneration
+            // We use 'Default' focus and current split to let the new logic decide
+            // If switching TO Cycle, calculateWorkout will handle the override
+            generateWorkout(state.currentSplit, 'Default');
+
+            // 6. Hide Loader
+            setTimeout(() => setIsGenerating(false), 500);
+        }, 2000);
+    };
+
     const value = {
         ...state,
         allExercises: getAllExercises(),
@@ -1400,7 +1576,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleLegs,
         setIsGenerating,
         setGenerationStatus,
-        setSplit
+        setSplit,
+        setProgramMode
     };
 
     return (

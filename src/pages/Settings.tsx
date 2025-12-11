@@ -19,7 +19,10 @@ export const Settings: React.FC = () => {
         setOpenaiApiKey,
         connectionStatus,
         includeLegs, // Added by user's instruction
-        toggleLegs // Added by user's instruction
+        toggleLegs, // Added by user's instruction
+        programMode,
+        setProgramMode,
+        cycleIndex
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
@@ -466,6 +469,24 @@ export const Settings: React.FC = () => {
                     >
                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${includeLegs ? 'left-7' : 'left-1'}`} />
                     </button>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-slate-700/50">
+                    <div className="bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border border-purple-500/30 rounded-xl p-4 flex items-center justify-between">
+                        <div>
+                            <div className="text-xs text-purple-300 font-bold uppercase tracking-wider mb-1">Active Cycle: Upper Body</div>
+                            <div className="text-white font-bold text-lg">Day {['A', 'B', 'C', 'D'][cycleIndex % 4]}</div>
+                            <div className="text-xs text-slate-400 mb-1">
+                                {['Push (Strength)', 'Pull (Hypertrophy)', 'Push (Volume)', 'Pull (Variation)'][cycleIndex % 4]}
+                            </div>
+                            <div className="text-[10px] text-slate-500 italic">
+                                Auto-advances on completion
+                            </div>
+                        </div>
+                        <div className="text-4xl grayscale opacity-50">
+                            {['🏋️', '🦎', '💪', '🦍'][cycleIndex % 4]}
+                        </div>
+                    </div>
                 </div>
             </div>
 

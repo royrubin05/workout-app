@@ -192,13 +192,7 @@ export const Home: React.FC = () => {
                         <option value="Bodyweight">Focus: Bodyweight / Travel</option>
                         {customWorkoutActive && <option value="Custom">Custom Selection</option>}
                     </select>
-                    <button
-                        onClick={refreshWorkout}
-                        className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-lg border border-slate-700"
-                        title="Regenerate Workout"
-                    >
-                        <RefreshCw size={20} />
-                    </button>
+
                 </div>
 
             </div>
