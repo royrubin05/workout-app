@@ -61,6 +61,7 @@ interface WorkoutContextType extends WorkoutState {
     setOpenaiApiKey: (key: string) => void;
     testPersistence: () => Promise<string>;
     toggleLegs: (enabled: boolean) => void;
+    setSplit: (split: string) => void;
     setIsGenerating: (isGenerating: boolean) => void;
     setGenerationStatus: (status: string | undefined) => void;
 }
@@ -310,8 +311,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
         };
 
-        // Debounce or just run?
-        const timeout = setTimeout(syncToCloud, 2000);
+        // Debounce (Fast sync to catch "Complete" actions before close)
+        const timeout = setTimeout(syncToCloud, 500);
         return () => clearTimeout(timeout);
     }, [
         state.equipment,
@@ -743,10 +744,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                             completed: false
                         };
                     });
-                    console.log('✅ AI Workout generated:', mappedWorkout.length);
+                    // Deduplicate by Name
+                    const uniqueMappedWorkout = mappedWorkout.filter((ex, index, self) =>
+                        index === self.findIndex((t) => t.name === ex.name)
+                    );
+
+                    console.log('✅ AI Workout generated:', uniqueMappedWorkout.length);
                     setState(prev => ({
                         ...prev,
-                        dailyWorkout: mappedWorkout,
+                        dailyWorkout: uniqueMappedWorkout,
                         lastWorkoutDate: new Date().toDateString(),
                         currentSplit: splitToUse as any
                     }));
@@ -988,6 +994,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 setIsGenerating(false);
             }, 1000);
         }, 2200);
+    };
+
+    const setSplit = (split: string) => {
+        setIsGenerating(true);
+        setTimeout(async () => {
+            setState(prev => ({ ...prev, currentSplit: split as any, completedToday: false }));
+            await generateWorkout(split, state.focusArea);
+            setIsGenerating(false);
+        }, 500);
     };
 
     const generateCustomWorkout = async (targets: string[], equipment: string[]) => {
@@ -1377,7 +1392,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         testPersistence,
         toggleLegs,
         setIsGenerating,
-        setGenerationStatus
+        setGenerationStatus,
+        setSplit
     };
 
     return (

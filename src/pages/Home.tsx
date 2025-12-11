@@ -24,7 +24,8 @@ export const Home: React.FC = () => {
         includeLegs,
         openaiApiKey,
         isGenerating,
-        generationStatus
+        generationStatus,
+        setSplit
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
@@ -158,11 +159,21 @@ export const Home: React.FC = () => {
                 )}
 
                 <div className="flex flex-col">
-                    <h1 className="text-3xl font-bold text-white">Your {currentSplit} Workout (Staging)</h1>
+                    <h1 className="text-3xl font-bold text-white">Your {currentSplit} Workout</h1>
                     {focusArea !== 'Default' && <p className="text-slate-400 text-sm">Focus: {focusArea}</p>}
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <select
+                        value={currentSplit}
+                        onChange={(e) => setSplit(e.target.value)}
+                        className="bg-slate-800 text-white text-sm rounded-lg px-3 py-2 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none font-bold placeholder:text-slate-500"
+                    >
+                        <option value="Push">Push</option>
+                        <option value="Pull">Pull</option>
+                        {includeLegs && <option value="Legs">Legs</option>}
+                    </select>
+
                     <select
                         value={customWorkoutActive ? 'Custom' : focusArea}
                         onChange={(e) => {
