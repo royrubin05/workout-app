@@ -3,7 +3,7 @@ import { useWorkout } from '../context/WorkoutContext';
 import { Dumbbell, Star, Plus, Trash2, CalendarDays, CheckCircle2, History as HistoryIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
-import { migrateExercises } from '../services/migrate';
+
 
 export const Settings: React.FC = () => {
     const {
@@ -19,7 +19,6 @@ export const Settings: React.FC = () => {
         openaiApiKey,
         setOpenaiApiKey,
         connectionStatus,
-        testPersistence, // added
         includeLegs, // Added by user's instruction
         toggleLegs // Added by user's instruction
     } = useWorkout();
@@ -177,52 +176,6 @@ export const Settings: React.FC = () => {
                     <p className="text-xs text-slate-500 mt-2">
                         This key is stored securely on your device and synced to your private database.
                     </p>
-                    <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col gap-2">
-                        <button
-                            onClick={async () => {
-                                setIsScanning(true);
-                                try {
-                                    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'Authorization': `Bearer ${apiKey}`
-                                        },
-                                        body: JSON.stringify({
-                                            model: 'gpt-4o-mini',
-                                            messages: [{ role: 'user', content: 'Say "OK"' }],
-                                            max_tokens: 5
-                                        })
-                                    });
-
-                                    if (res.ok) {
-                                        const data = await res.json();
-                                        alert(`✅ Success! AI Responded: "${data.choices[0].message.content}"`);
-                                    } else {
-                                        const err = await res.text();
-                                        alert(`❌ API Error ${res.status}: ${err}`);
-                                    }
-                                } catch (e: any) {
-                                    alert(`❌ Network Error: ${e.message}`);
-                                } finally {
-                                    setIsScanning(false);
-                                }
-                            }}
-                            className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors"
-                        >
-                            {isScanning ? 'Testing...' : 'Test AI Connection'}
-                        </button>
-
-                        <button
-                            onClick={async () => {
-                                const result = await testPersistence();
-                                alert(result);
-                            }}
-                            className="text-[10px] text-slate-500 hover:text-white underline text-center"
-                        >
-                            Debug: Test Database Persistence
-                        </button>
-                    </div>
                 </div>
             )}
 
@@ -518,20 +471,7 @@ export const Settings: React.FC = () => {
             </div>
 
             <div className="text-center text-xs text-slate-600 font-medium pb-8">
-                v1.2.0 • Data auto-synced
-                <button
-                    onClick={async () => {
-                        const confirmForce = window.confirm("Reset Database? This will delete all exercises and re-fetch from API.");
-                        if (!confirmForce) return;
-
-                        const res = await migrateExercises(true); // Force = true
-                        alert(res.message);
-                        if (res.success) window.location.reload();
-                    }}
-                    className="block mx-auto mt-2 text-slate-800 hover:text-red-600 underline"
-                >
-                    Run DB Migration (Reset Data)
-                </button>
+                v1.2.0
             </div>
         </div>
     );
