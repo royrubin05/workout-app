@@ -471,7 +471,7 @@ export const Settings: React.FC = () => {
             </div>
 
             <div className="text-center text-xs text-slate-600 font-medium pb-8">
-                v1.2.0
+                v1.21
             </div>
         </div>
     );
