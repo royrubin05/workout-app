@@ -20,8 +20,7 @@ export const Settings: React.FC = () => {
         connectionStatus,
         includeLegs, // Added by user's instruction
         toggleLegs, // Added by user's instruction
-        programMode,
-        setProgramMode,
+
         cycleIndex
     } = useWorkout();
 

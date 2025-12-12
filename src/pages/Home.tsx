@@ -11,7 +11,7 @@ import { FunLoader } from '../components/FunLoader';
 export const Home: React.FC = () => {
     const {
         dailyWorkout,
-        refreshWorkout,
+
         currentSplit,
         excludeExercise,
         replaceExercise,
