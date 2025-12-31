@@ -315,5 +315,120 @@ export const SmartParser = {
             equipment: guess.equipment,
             description: 'Custom Created Exercise'
         };
+    },
+
+    /**
+     * Generates an Advanced Cycle Workout enforcing progressive overload (Big 4).
+     */
+    generateAdvancedCycle: async (
+        apiKey: string,
+        equipmentList: string,
+        lastWorkoutType: string,
+        daysAgo: number,
+        stats: { bench: string, incline: string, pullups: string, row: string }
+    ): Promise<{
+        success: boolean,
+        workout?: {
+            meta: { workout_type: string, focus_summary: string },
+            exercises: { order: number, name: string, type: string, sets: number, reps: string, last_performance: string, target_goal: string, rest_seconds: number }[]
+        }
+    }> => {
+        const systemPrompt = `You are the "Workout Engine" for an advanced fitness app. 
+Your User Profile: Intermediate/Advanced lifter. 
+Schedule: 4-5 days/week. 
+Constraint: UPPER BODY ONLY (User opts out of leg training). 
+Goal: Progressive Overload (Strength & Hypertrophy), NOT random variety.
+
+YOUR LOGIC (THE 4-DAY ROTATION):
+Do not randomize the split. Cycle strictly through this order:
+1. PUSH A (Strength Focus):
+   - Primary: Heavy Flat Press (Barbell/DB)
+   - Type 2: Heavy Overhead Press
+   - Accessory: Incline Variation
+   - Accessory: Triceps Compound (Close grip/Dips)
+   - Isolation: Triceps Isolation
+   - Isolation: Side Delts
+   - Finisher: Chest Fly or Pushups
+
+2. PULL A (Width Focus):
+   - Primary: Weighted Pull-ups/Lat Pulldown
+   - Type 2: Heavy Row (Barbell/DB)
+   - Accessory: Vertical Pull Variation (Different grip)
+   - Accessory: Rear Delts (Face Pulls)
+   - Isolation: Biceps (Barbell/DB Curl)
+   - Isolation: Hammer Curls
+   - Stabilization: Shrugs or Scapular work
+
+3. PUSH B (Hypertrophy Focus):
+   - Primary: Incline Dumbbell/Machine Press
+   - Type 2: Flat DB Press or Weighted Dips
+   - Accessory: Overhead Press Variation (Volume)
+   - Accessory: Triceps Overhead Extension
+   - Isolation: Triceps Pushdown
+   - Isolation: Lateral Raises (High Volume)
+   - Finisher: Pec Fly
+
+4. PULL B (Thickness/Rear Delt Focus):
+   - Primary: T-Bar or Cable Row
+   - Type 2: Chin-ups (Volume focus)
+   - Accessory: Chest Supported Row
+   - Accessory: Face Pulls or Reverse Fly
+   - Isolation: Preacher/Incline Curls
+   - Isolation: Cable Curls
+   - Core: Hanging Leg Raise or Weighted Crunch
+
+*If a 5th day is requested: Generate an "ARMS & WEAK POINTS" day (Pure Isolation).*
+
+HOW TO GENERATE THE WORKOUT:
+1. Check \`last_workout_type\`. If previous was "Push A", today is "Pull A".
+2. Check \`equipment_list\`. Only pick valid exercises.
+3. PROGRESSIVE OVERLOAD (CRITICAL):
+   - Look at \`last_stats\` for the main compound lift.
+   - Set the \`target_weight\` to be +2.5% to +5% heavier OR +1 rep higher than last time.
+   - Do NOT change the Main Compound exercise randomly. Keep it consistent for at least 4 weeks.
+
+OUTPUT FORMAT:
+Return ONLY valid JSON with no markdown formatting.
+{
+  "meta": {
+    "workout_type": "PUSH A | PULL A | PUSH B | PULL B",
+    "focus_summary": "Short strategy sentence (e.g. 'Heavy triples on bench today')."
+  },
+  "exercises": [
+    {
+      "order": 1,
+      "name": "Barbell Bench Press",
+      "type": "Compound",
+      "sets": 4,
+      "reps": "5",
+      "last_performance": "185lbs x 5", 
+      "target_goal": "Try 190lbs x 5 or 185lbs x 6",
+      "rest_seconds": 180
+    },
+    ... (Total of 7-8 exercises)
+  ]
+}`;
+
+        const userPrompt = `Current Equipment: ${equipmentList}
+Last Workout Logged: "${lastWorkoutType}" (Completed ${daysAgo} days ago).
+Recent Stats (Big 4):
+- Flat Bench: ${stats.bench}
+- Incline DB Press: ${stats.incline}
+- Pullups: ${stats.pullups}
+- DB Row: ${stats.row}
+
+Task: Generate today's workout.`;
+
+        const response = await callOpenAI(apiKey, systemPrompt, userPrompt);
+        if (!response) return { success: false };
+
+        try {
+            const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(jsonStr);
+            return { success: true, workout: parsed };
+        } catch (e) {
+            console.error('AI Advanced Parse Error:', e);
+            return { success: false };
+        }
     }
 };

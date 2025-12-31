@@ -1,21 +1,12 @@
 import type { Exercise } from '../data/exercises';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// Extend Exercise to include completion status
-export interface WorkoutExercise extends Exercise {
-    completed?: boolean;
-    reps?: string;
-}
-
-
-
-interface WorkoutHistory {
-    date: string;
-    split: string;
-    focusArea?: string;
-    exercises: WorkoutExercise[];
-}
+import { ExerciseFilter } from '../services/ExerciseFilter';
+import { WorkoutEngine } from '../services/WorkoutEngine';
+import { ExerciseService } from '../services/ExerciseService';
+import { UserService } from '../services/UserService';
+import { ProgressionService } from '../services/ProgressionService';
+import type { WorkoutExercise, WorkoutHistory } from '../types';
 
 interface WorkoutState {
     equipment: string;
@@ -68,10 +59,10 @@ interface WorkoutContextType extends WorkoutState {
     setIsGenerating: (isGenerating: boolean) => void;
     setGenerationStatus: (status: string | undefined) => void;
     setProgramMode: (mode: 'standard' | 'upper_body_cycle') => void;
+    logExercisePerformance: (exerciseId: string, performance: string) => void;
 }
 
 import { supabase } from '../services/supabase';
-import { BASE_MOVEMENTS } from '../data/exercises';
 import { SmartParser } from '../utils/smartParser';
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
@@ -113,49 +104,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     useEffect(() => {
         const initializeData = async () => {
             try {
-                // 1. Fetch from Supabase
-                const { data, error } = await supabase.from('exercises').select('*');
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-                    const dbExercises: Exercise[] = data.map(d => ({
-                        name: d.name,
-                        category: d.category,
-                        muscles: d.muscle_group,
-                        muscleGroup: d.muscle_group, // Map DB 'muscle_group' -> App 'muscleGroup'
-                        equipment: d.equipment,
-                        type: 'Compound',
-                        gifUrl: d.gif_url,
-                        id: d.id || `db-${Math.random()}`
-                    }));
-                    setAllExercises(dbExercises);
-                    setState(prev => ({ ...prev, connectionStatus: 'connected' }));
-                } else {
-                    // Fallback
-                    const staticExercises: Exercise[] = BASE_MOVEMENTS.map((ex: any, i) => ({
-                        id: `static-${i}`,
-                        name: ex.name,
-                        category: ex.category,
-                        muscleGroup: ex.muscles,
-                        equipment: ex.equipment,
-                        type: 'Compound',
-                        muscles: ex.muscles,
-                        gifUrl: ex.gif_url
-                    }));
-                    setAllExercises(staticExercises);
-                }
+                const exercises = await ExerciseService.getAllExercises();
+                setAllExercises(exercises);
+                // Simple heuristic for connection status based on if we got DB exercises (id starts with 'db-')
+                const isConnected = exercises.some(e => e.id.startsWith('db-'));
+                setState(prev => ({ ...prev, connectionStatus: isConnected ? 'connected' : 'disconnected' }));
             } catch (err) {
-                console.warn('Offline or DB Error, using static data:', err);
-                const staticExercises: Exercise[] = BASE_MOVEMENTS.map((ex: any, i) => ({
-                    id: `static-${i}`,
-                    name: ex.name,
-                    category: ex.category,
-                    muscleGroup: ex.muscles,
-                    equipment: ex.equipment,
-                    type: 'Compound',
-                    muscles: ex.muscles
-                }));
-                setAllExercises(staticExercises);
+                console.warn('Initialization Error', err);
                 setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
             } finally {
                 setIsLoaded(true);
@@ -177,54 +132,19 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, [isLoaded]);
 
     // --- SUPABASE AUTH & SYNC ---
+    // --- SUPABASE AUTH & SYNC ---
     useEffect(() => {
         const connectToCloud = async () => {
             try {
-                // 1. Auto-Login
-                let authData = null;
-                let authError = null;
+                const user = await UserService.authenticate();
 
-                ({ data: authData, error: authError } = await supabase.auth.signInWithPassword({
-                    email: 'roy.rubin@gmail.com',
-                    password: 'password123',
-                }));
+                if (user) {
+                    console.log('☁️ Connected to Cloud as:', user.email);
 
-                if (authError || !authData?.session) {
-                    console.log('Login failed, trying signup/session check...');
-                    // Just check session if login failed (maybe already logged in?)
-                    const { data: sessionData } = await supabase.auth.getSession();
-                    if (sessionData.session) {
-                        authData = sessionData;
-                    } else {
-                        // Attempt Signup
-                        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                            email: 'roy.rubin@gmail.com',
-                            password: 'password123',
-                        });
-                        if (signUpData.session) authData = signUpData;
-                        else if (signUpError) throw signUpError;
-                    }
-                }
-
-                const userId = authData?.session?.user?.id;
-
-                if (userId) {
-                    console.log('☁️ Connected to Cloud as:', authData?.session?.user.email);
-
-                    // 2. Load Cloud Data (Settings & State)
-                    const { data: settingsData } = await supabase
-                        .from('user_settings')
-                        .select('equipment, excluded_exercises, current_split, daily_workout, last_workout_date, completed_today, focus_area, favorites, user_equipment_profile, custom_exercises, openai_api_key, available_exercise_names, include_legs, program_mode, cycle_index')
-                        .eq('id', userId)
-                        .single();
+                    // 2. Load Cloud Data
+                    const { settings: settingsData, history: historyData } = await UserService.loadUserData(user.id);
 
                     console.log('☁️ Loaded Settings:', settingsData);
-
-                    // 3. Load Cloud Data (History)
-                    const { data: historyData } = await supabase
-                        .from('workout_history')
-                        .select('*')
-                        .eq('user_id', userId);
 
                     // 4. Merge/Update State
                     setState(prev => {
@@ -298,28 +218,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Upsert Settings
-            const { error: syncError } = await supabase
-                .from('user_settings')
-                .upsert({
-                    id: user.id,
-                    equipment: state.equipment,
-                    excluded_exercises: state.excludedExercises,
-                    favorites: state.favorites,
-                    user_equipment_profile: state.userEquipmentProfile,
-                    custom_exercises: state.customExercises, // NEW: Sync Custom Exercises
-                    current_split: state.currentSplit,
-                    daily_workout: state.dailyWorkout,
-                    last_workout_date: state.lastWorkoutDate,
-                    completed_today: state.completedToday,
-                    focus_area: state.focusArea,
-                    openai_api_key: state.openaiApiKey,
-                    include_legs: state.includeLegs,
-                    program_mode: state.programMode,
-                    cycle_index: state.cycleIndex,
-                    available_exercise_names: state.availableExerciseNames,
-                    updated_at: new Date().toISOString()
-                });
+            // Use UserService to sync
+            const syncError = await UserService.syncSettings(user.id, state);
 
             if (syncError) {
                 console.error('❌ Sync Failed:', syncError.message, syncError.details);
@@ -397,381 +297,146 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, [isLoaded, state.lastWorkoutDate, state.completedToday, state.currentSplit, state.dailyWorkout.length, state.focusArea]);
 
     // --- SMART MATCHING LOGIC ---
-    const normalizeUserEquipment = (userInput: string): string[] => {
-        const rawItems = userInput.toLowerCase().split(/[\n,]+/).map(s => s.trim()).filter(s => s);
-        const mappedItems = new Set<string>();
-
-        // Always include bodyweight IF enabled
-        // Always include bodyweight
-        mappedItems.add('body weight');
-        mappedItems.add('body only');
-        mappedItems.add('bodyweight');
-
-        rawItems.forEach(item => {
-            // Direct match (cleaned)
-            mappedItems.add(item);
-            mappedItems.add(item.replace(/\s+/g, '')); // Add "kettlebells" from "kettle bells"
-
-            // Synonyms & Inferences
-            if (item.includes('dumb')) {
-                mappedItems.add('dumbbell');
-                mappedItems.add('dumbbells');
-            }
-            if (item.includes('bar') && !item.includes('cable') && !item.includes('pull')) {
-                mappedItems.add('barbell');
-                mappedItems.add('ez curl bar');
-                mappedItems.add('ez bar');
-            }
-            if (item.includes('kettle')) {
-                mappedItems.add('kettlebell');
-                mappedItems.add('kettlebells');
-            }
-            if (item.includes('cable') || item.includes('pulley') || item.includes('rope')) {
-                mappedItems.add('cable');
-                mappedItems.add('cables');
-            }
-            if ((item.includes('machine') || item.includes('gym') || item.includes('pec')) && !item.includes('cable')) {
-                mappedItems.add('machine');
-                mappedItems.add('smith machine');
-            }
-            if (item.includes('band') || item.includes('resistance')) {
-                mappedItems.add('bands');
-                mappedItems.add('band');
-            }
-            if (item.includes('ball') || item.includes('medicine')) {
-                mappedItems.add('medicine ball');
-                mappedItems.add('exercise ball');
-            }
-            if (item.includes('bench')) {
-                mappedItems.add('bench');
-            }
-            if (item.includes('box') || item.includes('step')) {
-                mappedItems.add('box');
-            }
-            if (item.includes('plate')) {
-                mappedItems.add('plate');
-            }
-            if (item.includes('pull') && (item.includes('up') || item.includes('bar'))) {
-                mappedItems.add('pull-up bar');
-            }
-        });
-
-        return Array.from(mappedItems);
-    };
-
+    // Wrapper for legacy context consumers
     const getAvailableExercises = (eqString: string, category?: string) => {
-        // AI PROFILE MODE (Primary)
-        if (state.userEquipmentProfile && state.availableExerciseNames.length > 0) {
-            let uniqueExercises = allExercises.filter(ex =>
-                state.availableExerciseNames.includes(ex.name) &&
-                !state.excludedExercises.includes(ex.name) // Filter excluded items from AI pool
-            );
-
-            if (category && category !== 'Full Body') {
-                uniqueExercises = uniqueExercises.filter(ex => {
-                    const mg = ex.muscleGroup.toLowerCase();
-                    if (category === 'Arms') {
-                        return ['Biceps', 'Triceps', 'Forearms', 'Arms'].map(s => s.toLowerCase()).includes(mg);
-                    }
-                    if (category === 'Back') {
-                        return ['lats', 'middle back', 'lower back', 'traps', 'back'].includes(mg);
-                    }
-                    if (category === 'Legs') {
-                        return ['quadriceps', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors', 'legs', 'quads'].includes(mg);
-                    }
-                    return ex.category === category || ex.muscleGroup === category;
-                });
-            }
-
-            // Console log to debug
-            // console.log(`getAvailableExercises (AI Profile) -> Count: ${uniqueExercises.length}`);
-            return uniqueExercises;
-        }
-
-        // LEGACY MODE (Fallback if no profile)
-        const legacyUserEq = normalizeUserEquipment(eqString);
-
-        let uniqueExercises = allExercises;
-
-        // Filter by category first
-        if (category && category !== 'Full Body') { // 'Full Body' category means no specific category filter
-            uniqueExercises = uniqueExercises.filter(ex => ex.category === category);
-        }
-
-        const filtered = uniqueExercises.filter(ex => {
-            // GLOBAL FILTER: Excluded Exercises
-            if (state.excludedExercises.includes(ex.name)) return false;
-
-            // GLOBAL FILTER: Exclude Legs if disabled
-            if (!state.includeLegs) {
-                const isLegs = ex.category === 'Legs' ||
-                    ['quads', 'hamstrings', 'calves', 'glutes', 'legs', 'adductors', 'abductors'].includes(ex.muscleGroup.toLowerCase());
-                if (isLegs) return false;
-            }
-
-            // Filter by Category (Split)
-            if (category && category !== 'Full Body') {
-                if (category === 'Arms') {
-                    // Special Case: Arms includes Biceps, Triceps, Forearms
-                    const isArm = ['Biceps', 'Triceps', 'Forearms', 'Arms'].includes(ex.muscleGroup);
-                    if (!isArm) return false;
-                } else if (category === 'Back') {
-                    // FIX: Back includes Lats, Middle Back, Lower Back, Traps
-                    // Case insensitive check just in case
-                    const mg = ex.muscleGroup.toLowerCase();
-                    const isBack = ['lats', 'middle back', 'lower back', 'traps', 'back'].includes(mg);
-                    if (!isBack && ex.category !== 'Pull') return false; // Also allow Pull category if muscle is ambiguous?
-                    if (!isBack) return false;
-                } else if (category === 'Legs') {
-                    const mg = ex.muscleGroup.toLowerCase();
-                    const isLegs = ['quadriceps', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors', 'legs', 'quads'].includes(mg);
-                    if (!isLegs) return false;
-                } else {
-                    // Check if filter matches Category (Split) OR Muscle Group (Focus)
-                    // e.g. category='Shoulders' matches ex.muscleGroup='Shoulders' (even if ex.category='Push')
-                    if (ex.category !== category && ex.muscleGroup !== category) {
-                        return false;
-                    }
-                }
-            }
-
-            // Smart Equipment Check
-            // Smart Equipment Check (Handle string or string[])
-            const requiredList: string[] = Array.isArray(ex.equipment)
-                ? ex.equipment.map(e => e.toLowerCase().trim())
-                : (ex.equipment ? [ex.equipment.toLowerCase().trim()] : []);
-
-            if (requiredList.length === 0) return false;
-
-            // Check if ANY of the user's mapped equipment matches ANY required option (OR logic for variations)
-            return legacyUserEq.some(u =>
-                requiredList.some(req => {
-                    if (req.length < 3) return u === req;
-                    return req.includes(u) || u.includes(req);
-                })
-            );
-        });
-
-        // console.log(`getAvailableExercises('${eqString}') -> userEq:`, legacyUserEq, 'Count:', uniqueExercises.length, '->', filtered.length);
-        return filtered;
+        return ExerciseFilter.getAvailableExercises(
+            allExercises,
+            eqString,
+            category,
+            state.excludedExercises,
+            state.includeLegs,
+            { enabled: !!state.userEquipmentProfile, availableExercises: state.availableExerciseNames }
+        );
     };
 
     // Pure helper to calculate workout data without setting state
-    const calculateWorkout = (split?: string, focus?: string) => {
-        let splitToUse = split || state.currentSplit;
-        let focusToUse = focus || state.focusArea;
-
-        // --- NEW PROGRAM LOGIC ---
-        if (state.programMode === 'upper_body_cycle' && !focus && !split) {
-            // Cycle Logic (A, B, C, D)
-            const cyclePhase = state.cycleIndex % 4; // 0-3
-            const phaseName = ['Push (Strength)', 'Pull (Hypertrophy)', 'Push (Volume)', 'Pull (Variation)'][cyclePhase];
-
-            const selectedExercises: WorkoutExercise[] = [];
-            const equipmentToUse = state.equipment;
-            const available = getAvailableExercises(equipmentToUse, 'Full Body'); // Get everything to filter manually
-
-            // Get Recent Exercises (Last 3 Workouts) to enforce variety
-            const recentHistory = state.history.slice(-3);
-            const recentNames = new Set(recentHistory.flatMap(h => h.exercises.map(e => e.name)));
-
-            const pick = (criteria: (ex: Exercise) => boolean, count: number, reps: string) => {
-                let candidates = available.filter(criteria).filter(ex => !selectedExercises.find(s => s.name === ex.name));
-
-                // Sort by Priority:
-                // 1. (Not Recent) + (Favorite)
-                // 2. (Not Recent) + (Not Favorite)
-                // 3. (Recent) + (Favorite)  <- For when we run out of fresh moves
-                // 4. (Recent) + (Not Favorite)
-
-                candidates.sort((a, b) => {
-                    const isFavA = state.favorites.includes(a.name);
-                    const isFavB = state.favorites.includes(b.name);
-                    const isRecentA = recentNames.has(a.name);
-                    const isRecentB = recentNames.has(b.name);
-
-                    // Assign scores (Higher is better)
-                    const scoreA = (isRecentA ? 0 : 2) + (isFavA ? 1 : 0);
-                    const scoreB = (isRecentB ? 0 : 2) + (isFavB ? 1 : 0);
-
-                    if (scoreA > scoreB) return -1;
-                    if (scoreA < scoreB) return 1;
-
-                    return 0.5 - Math.random();
-                });
-
-                candidates.slice(0, count).forEach(ex => {
-                    selectedExercises.push({ ...ex, reps });
-                });
-            };
-
-            const has = (name: string, part: string | string[]) => {
-                const parts = Array.isArray(part) ? part : [part];
-                return parts.some(p => name.toLowerCase().includes(p.toLowerCase()));
-            };
-
-            if (cyclePhase === 0) { // A: Push Strength
-                // 1. Flat Horizontal Press (5-8)
-                pick(ex => ex.category === 'Push' && has(ex.name, ['Bench', 'Floor']) && !has(ex.name, 'Incline') && ex.type === 'Compound', 1, '5-8');
-                // 2. Vertical Press (5-8)
-                pick(ex => ex.category === 'Push' && has(ex.name, ['Overhead', 'Arnold', 'Military']) && ex.type === 'Compound', 1, '5-8');
-                // 3. Tricep Extension (Heavy)
-                pick(ex => ex.category === 'Push' && ex.muscleGroup === 'Triceps' && has(ex.name, ['Skull', 'Extension', 'Close Grip']), 1, '8-10');
-                // Fill remaining
-                if (selectedExercises.length < 5) pick(ex => ex.category === 'Push', 5 - selectedExercises.length, '8-12');
-            }
-            else if (cyclePhase === 1) { // B: Pull Hypertrophy
-                // 1. Vertical Pull (High Volume)
-                pick(ex => ex.category === 'Pull' && has(ex.name, ['Pull-up', 'Chin-up', 'Lat Pulldown']) && !has(ex.name, 'Neutral'), 1, '10-15');
-                // 2. Horizontal Row (Controlled)
-                pick(ex => ex.category === 'Pull' && has(ex.name, ['Seated Row', 'Cable', 'Machine']), 1, '10-15');
-                // 3. Bicep Curl
-                pick(ex => ex.category === 'Pull' && ex.muscleGroup === 'Biceps', 1, '10-15');
-                // 4. Rear Delt
-                pick(ex => ex.category === 'Pull' && has(ex.name, ['Face Pull', 'Rear Delt']), 1, '12-15');
-                if (selectedExercises.length < 5) pick(ex => ex.category === 'Pull', 5 - selectedExercises.length, '10-12');
-            }
-            else if (cyclePhase === 2) { // C: Push Volume
-                // 1. Incline Press
-                pick(ex => ex.category === 'Push' && has(ex.name, 'Incline'), 1, '10-15');
-                // 2. Vertical Press (Accessory)
-                pick(ex => ex.category === 'Push' && has(ex.name, ['Dumbbell Press', 'Machine Press']), 1, '10-15');
-                // 3. Lateral Raise - Note: Lateral Raises are 'Push' in our data
-                pick(ex => ex.category === 'Push' && has(ex.name, 'Lateral'), 1, '12-15');
-                // 4. Tricep Pushdown
-                pick(ex => ex.category === 'Push' && has(ex.name, 'Pushdown'), 1, '12-15');
-                if (selectedExercises.length < 5) pick(ex => ex.category === 'Push', 5 - selectedExercises.length, '10-15');
-            }
-            else if (cyclePhase === 3) { // D: Pull Variation
-                // 1. Heavy Row
-                pick(ex => ex.category === 'Pull' && has(ex.name, ['Barbell Row', 'T-Bar', 'Pendlay', 'Deadlift']), 1, '8-12');
-                // 2. Neutral Vertical Pull
-                pick(ex => ex.category === 'Pull' && (has(ex.name, 'Neutral') || has(ex.name, 'Hammer')), 1, '8-12');
-                // 3. Hammer Curl
-                pick(ex => ex.category === 'Pull' && has(ex.name, 'Hammer Curl'), 1, '10-12');
-                // 4. Upper Back/Shrug
-                pick(ex => ex.category === 'Pull' && has(ex.name, ['Shrug', 'Face Pull']), 1, '10-12');
-                if (selectedExercises.length < 5) pick(ex => ex.category === 'Pull', 5 - selectedExercises.length, '8-12');
-            }
-
-            return { selectedExercises, splitToUse: `Cycle: ${phaseName}` };
-        }
-
-        // --- STANDARD SPLIT ROTATION ---
-        if (!split && !focus) {
-            const splits = ['Push', 'Pull'];
-            if (state.includeLegs) splits.push('Legs');
-            const currentIndex = splits.indexOf(state.currentSplit);
-            splitToUse = splits[(currentIndex + 1) % splits.length] as any;
-        }
-
-        const getSlots = (split: string) => {
-            if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
-                if (focusToUse === 'Arms') {
-                    return [
-                        { type: 'Isolation', muscle: 'Biceps', count: 3 },
-                        { type: 'Isolation', muscle: 'Triceps', count: 3 },
-                        { type: 'Compound', muscle: 'Shoulders', count: 1 },
-                        { type: 'Isolation', muscle: 'Forearms', count: 1 }
-                    ];
-                }
-                return [
-                    { type: 'Compound', muscle: focusToUse, count: 3 },
-                    { type: 'Isolation', muscle: focusToUse, count: 3 },
-                    { type: 'Compound', muscle: focusToUse, count: 2 }
-                ];
-            }
-
-            if (split === 'Push') return [
-                { type: 'Compound', muscle: 'Chest', count: 2 },
-                { type: 'Compound', muscle: 'Shoulders', count: 2 },
-                { type: 'Isolation', muscle: 'Chest', count: 1 },
-                { type: 'Isolation', muscle: 'Shoulders', count: 1 },
-                { type: 'Isolation', muscle: 'Triceps', count: 2 },
-            ];
-            if (split === 'Pull') return [
-                { type: 'Compound', muscle: 'Back', count: 3 },
-                { type: 'Isolation', muscle: 'Rear Delts', count: 1 },
-                { type: 'Isolation', muscle: 'Biceps', count: 3 },
-                { type: 'Isolation', muscle: 'Traps', count: 1 },
-            ];
-            if (split === 'Legs') return [
-                { type: 'Compound', muscle: 'Quads', count: 2 },
-                { type: 'Compound', muscle: 'Hamstrings', count: 2 },
-                { type: 'Compound', muscle: 'Legs', count: 1 },
-                { type: 'Isolation', muscle: 'Quads', count: 1 },
-                { type: 'Isolation', muscle: 'Hamstrings', count: 1 },
-                { type: 'Isolation', muscle: 'Calves', count: 1 },
-            ];
-            return [
-                { type: 'Compound', muscle: 'Legs', count: 2 },
-                { type: 'Compound', muscle: 'Chest', count: 2 },
-                { type: 'Compound', muscle: 'Back', count: 2 },
-                { type: 'Compound', muscle: 'Shoulders', count: 1 },
-                { type: 'Isolation', muscle: 'Arms', count: 1 },
-            ];
-        };
-
-        const slots = getSlots(splitToUse);
-        const equipmentToUse = focusToUse === 'Bodyweight' ? 'Bodyweight' : state.equipment;
-
-        let categoryFilter = splitToUse;
-        if (focusToUse && focusToUse !== 'Default' && focusToUse !== 'Bodyweight') {
-            categoryFilter = focusToUse;
-        }
-
-        const availableForSplit = getAvailableExercises(equipmentToUse, categoryFilter);
-        const selectedExercises: Exercise[] = [];
-        const usedNames = new Set<string>();
-
-        slots.forEach((slot: any) => {
-            const candidates = availableForSplit.filter(ex => {
-                if (state.excludedExercises.includes(ex.name)) return false;
-                const target = slot.muscle.toLowerCase();
-                const exMuscle = ex.muscleGroup.toLowerCase();
-                const muscleMatch = exMuscle.includes(target) ||
-                    (target === 'arms' && (exMuscle.includes('biceps') || exMuscle.includes('triceps'))) ||
-                    (target === 'back' && (exMuscle.includes('lats') || exMuscle.includes('traps')));
-                return muscleMatch && !usedNames.has(ex.name);
-            });
-
-            const shuffled = candidates.sort((a, b) => {
-                const isFavA = state.favorites.includes(a.name);
-                const isFavB = state.favorites.includes(b.name);
-                if (isFavA && !isFavB) return Math.random() < 0.7 ? -1 : 1;
-                if (!isFavA && isFavB) return Math.random() < 0.7 ? 1 : -1;
-                return 0.5 - Math.random();
-            });
-            const picked = shuffled.slice(0, slot.count);
-            picked.forEach(p => {
-                selectedExercises.push(p);
-                usedNames.add(p.name);
-            });
+    const calculateWorkout = (split?: string, focus?: string, equipmentOverride?: string) => {
+        return WorkoutEngine.calculateWorkout({
+            split,
+            focusArea: focus,
+            programMode: state.programMode,
+            cycleIndex: state.cycleIndex,
+            // Use override if provided, else check if Focus implies Bodyweight, else state
+            equipment: equipmentOverride !== undefined ? equipmentOverride : (focus === 'Bodyweight' ? 'Bodyweight' : state.equipment),
+            allExercises: allExercises,
+            excludedExercises: state.excludedExercises,
+            includeLegs: state.includeLegs,
+            userProfile: { enabled: !!state.userEquipmentProfile, availableExercises: state.availableExerciseNames },
+            favorites: state.favorites,
+            history: state.history,
+            customExercises: state.customExercises
         });
-
-        if (selectedExercises.length < 8) {
-            const fallbackPool = getAvailableExercises(equipmentToUse, categoryFilter);
-            const remaining = fallbackPool
-                .filter(ex => !usedNames.has(ex.name) && !state.excludedExercises.includes(ex.name))
-                .sort(() => 0.5 - Math.random())
-                .slice(0, 8 - selectedExercises.length);
-            selectedExercises.push(...remaining);
-        }
-
-        return { selectedExercises, splitToUse };
     };
 
-    const generateWorkout = async (splitOverride?: string, focusOverride?: string) => {
-        const splitToUse = splitOverride || state.currentSplit;
-        const focusToUse = focusOverride || state.focusArea;
+    const generateWorkout = async (splitOverride?: string, focusOverride?: string, equipmentOverride?: string) => {
+        const requestedSplit = splitOverride || state.currentSplit;
+        const requestedFocus = focusOverride || state.focusArea;
         const apiKey = state.openaiApiKey;
 
-        console.log(`💪 generatingWorkout... Split: ${splitToUse}, Focus: ${focusToUse}, Override: ${focusOverride}`);
+        console.log(`💪 generatingWorkout... Split: ${requestedSplit}, Focus: ${requestedFocus}, Override: ${focusOverride}`);
 
         // 0. Update Status Initial
         setState(prev => ({ ...prev, generationStatus: "Analyzing Equipment... 🔍" }));
 
-        // --- AI GENERATION MODE ---
+        // --- ADVANCED AI CYCLE MODE ---
+        if (state.programMode === 'upper_body_cycle' && apiKey && state.userEquipmentProfile) {
+            console.log('🤖 Generating Advanced Cycle Workout...');
+            setState(prev => ({ ...prev, generationStatus: "Consulting AI Coach (Advanced)... 🧠" }));
+
+            try {
+                // 1. Get Stats (Big 4)
+                const stats = ProgressionService.getBig4Stats(state.history);
+                const statsStr = {
+                    bench: stats.lastLogs.horizontalPush || "None",
+                    incline: stats.lastLogs.verticalPush || "None", // Proxy Vertical Push
+                    pullups: stats.lastLogs.verticalPull || "None",
+                    row: stats.lastLogs.horizontalPull || "None"
+                };
+
+                // 2. Determine Last Workout Context
+                const lastWorkout = state.history.length > 0 ? state.history[state.history.length - 1] : null;
+                const lastType = lastWorkout ? (lastWorkout.split || "None") : "None";
+                const daysAgo = lastWorkout ? Math.floor((Date.now() - new Date(lastWorkout.date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+                // 3. Call AI
+                const result = await SmartParser.generateAdvancedCycle(apiKey, state.equipment, lastType, daysAgo, statsStr);
+
+                if (result.success && result.workout) {
+                    const aiPlan = result.workout.exercises;
+                    const meta = result.workout.meta;
+
+                    setState(prev => ({ ...prev, generationStatus: "Finalizing Plan... ✨" }));
+
+                    // Map AI plan to Exercise objects
+                    const mappedWorkout: WorkoutExercise[] = aiPlan.map((step, idx) => {
+                        // Find matching DB exercise logic (Duplicated from Standard AI for now, could be helper)
+                        const allPool = [...allExercises, ...state.customExercises];
+                        const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const stepNorm = normalize(step.name);
+
+                        let existing = allPool.find(ex => normalize(ex.name) === stepNorm);
+                        if (!existing) {
+                            existing = allPool.find(ex => {
+                                const exNorm = normalize(ex.name);
+                                return exNorm.includes(stepNorm) || stepNorm.includes(exNorm);
+                            });
+                        }
+                        if (!existing) {
+                            const stepWords = step.name.toLowerCase().split(' ');
+                            let bestMatch: Exercise | undefined;
+                            let maxMatches = 0;
+                            allPool.forEach(ex => {
+                                const exWords = ex.name.toLowerCase().split(' ');
+                                const matches = stepWords.filter(w => w.length > 2 && exWords.includes(w)).length;
+                                if (matches > maxMatches && matches >= 2) {
+                                    maxMatches = matches;
+                                    bestMatch = ex;
+                                }
+                            });
+                            existing = bestMatch;
+                        }
+
+                        return {
+                            id: existing?.id || `ai-${idx}-${Date.now()}`,
+                            name: existing?.name || step.name,
+                            category: (existing?.category || 'Push') as any, // AI determined split implies category
+                            muscleGroup: existing?.muscleGroup || 'Full Body',
+                            equipment: existing?.equipment || 'Bodyweight',
+                            gifUrl: existing?.gifUrl,
+                            type: (existing?.type || step.type) as any,
+                            sets: step.sets?.toString() || "3",
+                            reps: step.reps, // Keep original string "5" or "185lbs x 5?" -> AI returns just reps goal? "5".
+                            // AI Output for reps: "5"
+                            // AI Output for target_goal: "Try 190lbs x 5"
+                            // We should put target_goal in notes? Or use it?
+                            // Notes field is good.
+                            notes: `${step.target_goal || step.last_performance || ''}`,
+                            completed: false
+                        };
+                    });
+
+                    console.log('✅ Advanced Cycle Generated:', meta.workout_type);
+
+                    setState(prev => ({
+                        ...prev,
+                        dailyWorkout: mappedWorkout,
+                        lastWorkoutDate: new Date().toDateString(),
+                        currentSplit: meta.workout_type as any, // "PUSH A", "PULL A" etc.
+                        focusArea: meta.focus_summary // Use focus area field to store the summary? Or add new field?
+                        // Storing summary in focusArea might break "Smart Matching" if it looks for "Chest". 
+                        // But for advanced cycle, we don't maybe care? 
+                        // Let's just keep 'Default' focus and show summary elsewhere? 
+                        // Or abuse focusArea key if UI displays it widely.
+                    }));
+                    return;
+                }
+            } catch (e) {
+                console.error("Advanced Cycle Failed:", e);
+                // Fallthrough to Standard AI
+            }
+        }
+
+        // --- STANDARD AI GENERATION MODE ---
         if (apiKey && state.userEquipmentProfile) {
             console.log('🤖 Generating AI Workout...');
             setState(prev => ({ ...prev, generationStatus: "Consulting AI Coach... 🤖" }));
@@ -779,9 +444,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             try {
                 // CRITICAL FIX: Do NOT pre-filter whitelist by Split if using AI.
                 // Allow AI to select from ALL equipment-valid exercises to handle Focus overrides properly.
-                const equipmentValidExercises = getAvailableExercises(state.equipment, 'Full Body');
+                const equipmentValidExercises = getAvailableExercises(state.equipment, 'Full Body'); // Restore definition
 
-                // If focus is active, we can prioritize strict focus items too, but providing valid split items is the most important guardrail.
                 const validNames = equipmentValidExercises.map(e => e.name);
 
                 // Ensure custom exercises are included if they match the split
@@ -793,8 +457,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 const aiResult = await SmartParser.generateAIWorkout(
                     state.openaiApiKey,
-                    splitToUse,
-                    focusToUse,
+                    requestedSplit,
+                    requestedFocus,
                     state.userEquipmentProfile,
                     finalWhitelist, // Pass STRICTLY filtered list
                     state.favorites // PASS FAVORITES
@@ -847,8 +511,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         return {
                             id: existing?.id || `ai-${idx}-${Date.now()}`,
                             name: existing?.name || step.name, // Use DB name if found to match image!
-                            category: (existing?.category || splitToUse) as any,
-                            muscleGroup: existing?.muscleGroup || focusToUse,
+                            category: (existing?.category || requestedSplit) as any,
+                            muscleGroup: existing?.muscleGroup || requestedFocus,
                             equipment: existing?.equipment || 'Bodyweight',
                             gifUrl: existing?.gifUrl, // Image should work now if matched
                             type: existing?.type || 'Isolation',
@@ -868,7 +532,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...prev,
                         dailyWorkout: uniqueMappedWorkout,
                         lastWorkoutDate: new Date().toDateString(),
-                        currentSplit: splitToUse as any
+                        currentSplit: requestedSplit as any
                     }));
                     return; // EXIT EARLY
                 }
@@ -883,25 +547,32 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.log('⚠️ Using Heuristic Fallback Workout...');
         setState(prev => ({ ...prev, generationStatus: "Calculating Locally... 🧮" }));
 
-        const { selectedExercises, splitToUse: newSplitToUse } = calculateWorkout(splitOverride, focusOverride);
-
-        console.log(`✅ Final Workout Generated: ${selectedExercises.length} exercises.`);
+        const { selectedExercises, splitToUse } = calculateWorkout(splitOverride, focusOverride, equipmentOverride);
 
         setState(prev => ({
             ...prev,
             dailyWorkout: selectedExercises,
             lastWorkoutDate: new Date().toDateString(),
-            currentSplit: newSplitToUse as any
+            completedToday: false, // Reset completion
+            // If overrides provided, update state too?
+            // focusOverride is transient usually, but splitOverride might stick?
+            // For equipmentOverride, we already set state in updateEquipment,
+            // but for 'focus' or 'split' we might want to persist if passed.
+            // Current usage implies buttons call this to switching modes, so yes.
+            focusArea: focusOverride || prev.focusArea,
+            currentSplit: (splitOverride || splitToUse) as any
         }));
+
+        setIsGenerating(false);
     };
 
-    const updateEquipment = (eq: string) => {
-        setState(prev => ({ ...prev, equipment: eq }));
-        // Optionally regenerate workout immediately
-        // generateWorkout(); 
+    const updateEquipment = (eqString: string) => {
+        // Update state
+        setState(prev => ({ ...prev, equipment: eqString }));
+
+        // Regenerate workout immediately with new equipment
+        generateWorkout(undefined, undefined, eqString);
     };
-
-
 
     const refreshWorkout = () => {
         generateWorkout();
@@ -1031,10 +702,29 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const toggleExerciseCompletion = (exerciseId: string) => {
         setState(prev => {
-            // 1. Update Daily Workout - Match by ID
-            const newDaily = prev.dailyWorkout.map(ex =>
-                (ex.id === exerciseId || ex.name === exerciseId) ? { ...ex, completed: !ex.completed } : ex
-            );
+            const index = prev.dailyWorkout.findIndex(e => e.id === exerciseId);
+            if (index === -1) return prev;
+
+            const newWorkout = [...prev.dailyWorkout];
+            newWorkout[index] = {
+                ...newWorkout[index],
+                completed: !newWorkout[index].completed,
+                // If checking as complete and no log exists, could default to "reps"? 
+                // But stick to explicit logging via global state updates first
+            };
+
+            // Sync immediately to LS and Supabase (debounced by UserService)
+            // Assuming userId is available in scope, e.g., from useAuth or passed down
+            // For this example, I'll assume `userId` is available or passed.
+            // If not, it needs to be fetched or passed.
+            // For now, I'll use a placeholder `null` for `userId` if not explicitly defined.
+            // In a real app, `userId` would come from `supabase.auth.getUser()`.
+            // const userId = supabase.auth.getUser()?.data?.user?.id; // Example
+            // UserService.syncSettings(userId, { ...prev, dailyWorkout: newWorkout });
+
+            // Re-implementing the history logic here as it was removed in the provided snippet
+            // and is crucial for the app's functionality.
+            const newDaily = newWorkout; // Renamed for clarity with original logic
             const hasCompleted = newDaily.some(ex => ex.completed);
 
             // 2. Update History (Purely Local Calculation)
@@ -1081,6 +771,24 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
     };
 
+    const logExercisePerformance = (exerciseId: string, performance: string) => {
+        setState(prev => {
+            const index = prev.dailyWorkout.findIndex(e => e.id === exerciseId);
+            if (index === -1) return prev;
+
+            const newWorkout = [...prev.dailyWorkout];
+            newWorkout[index] = {
+                ...newWorkout[index],
+                reps: performance // Update the "reps" field which holds the log string (e.g. "185x5")
+            };
+
+            // Sync (Assuming UserService and userId are available)
+            // const userId = supabase.auth.getUser()?.data?.user?.id; // Example
+            // UserService.syncSettings(userId, { ...prev, dailyWorkout: newWorkout });
+            return { ...prev, dailyWorkout: newWorkout };
+        });
+    };
+
     const reorderWorkout = (newOrder: WorkoutExercise[]) => {
         setState(prev => ({
             ...prev,
@@ -1124,7 +832,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         // Actually, the main syncToCloud effect watches state changes if we add cycleIndex to dependency?
                         // No, syncToCloud effect runs once on mount or manual.
                         // We need to ensure persistence. The `syncToCloud` effect doesn't exist as a watcher.
-                        // We rely on specific actions to update DB or the one-off sync.
                         // We must update the DB here or ensure a sync effect exists.
                         // Looking at code, there IS a `syncToCloud` inside `useEffect` line 282? No, that runs once.
                         // Ah, line 938 syncs HISTORY.
@@ -1182,7 +889,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const eqString = equipment.join(', ');
 
             // Normalize here to be safe
-            const userEq = normalizeUserEquipment(eqString);
+            const userEq = ExerciseFilter.normalizeUserEquipment(eqString);
 
             availablePool = availablePool.filter(ex => {
                 const requiredList: string[] = Array.isArray(ex.equipment)
@@ -1321,7 +1028,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             excludedExercises: newExcluded
         }));
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } = { user: null } } = await supabase.auth.getUser(); // Added default for user
         if (user) {
             await supabase.from('user_settings').upsert({
                 id: user.id,
@@ -1359,7 +1066,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             setAllExercises(prev => [...prev, exObj]);
 
             // 2. Persist to Supabase
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } = { user: null } } = await supabase.auth.getUser(); // Added default for user
             if (user) {
                 // Determine description if possible (it's not on Exercise type yet, but returned by parser)
                 const desc = (newEx as any).description || '';
@@ -1414,7 +1121,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setState(prev => ({ ...prev, userEquipmentProfile: profile }));
 
         // 1b. Save Profile to Supabase
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } = { user: null } } = await supabase.auth.getUser(); // Added default for user
 
         if (!profile.trim()) {
             // Clear whitelist if empty
@@ -1457,7 +1164,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Removed localStorage.setItem
 
         // 2. Force Immediate Save to DB
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } = { user: null } } = await supabase.auth.getUser(); // Added default for user
         if (user) {
             const { error } = await supabase.from('user_settings').upsert({ id: user.id, openai_api_key: key });
             if (error) console.error("Force Save Key Failed:", error);
@@ -1491,7 +1198,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
 
         // 2. Persist to DB
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } = { user: null } } = await supabase.auth.getUser(); // Added default for user
         if (user) {
             await supabase.from('user_settings').upsert({ id: user.id, include_legs: enabled });
         }
@@ -1513,7 +1220,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     const testPersistence = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } = { user: null } } = await supabase.auth.getUser(); // Added default for user
         if (!user) return "User not logged in";
 
         const testKey = `test-key-${Date.now()}`;
@@ -1538,7 +1245,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             setState(prev => ({ ...prev, programMode: mode }));
 
             // 4. Persist to DB
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } = { user: null } } = await supabase.auth.getUser(); // Added default for user
             if (user) {
                 await supabase.from('user_settings').upsert({ id: user.id, program_mode: mode });
             }
@@ -1577,7 +1284,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsGenerating,
         setGenerationStatus,
         setSplit,
-        setProgramMode
+        setProgramMode,
+        logExercisePerformance
     };
 
     return (

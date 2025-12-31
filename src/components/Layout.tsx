@@ -10,7 +10,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-white/10">
                 <div className="max-w-2xl mx-auto px-6 py-4 flex justify-between items-center">
                     <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                        FitGen
+                        Rubinia Ripped
                     </h1>
                 </div>
             </header>

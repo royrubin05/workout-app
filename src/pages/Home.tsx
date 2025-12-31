@@ -7,10 +7,14 @@ import confetti from 'canvas-confetti';
 import { CustomizeWorkoutModal } from '../components/CustomizeWorkoutModal';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
 import { FunLoader } from '../components/FunLoader';
+import { ProgressionCard } from '../components/ProgressionCard';
+import { ProgressionService } from '../services/ProgressionService';
+import { LogModal } from '../components/LogModal';
 
 export const Home: React.FC = () => {
     const {
         dailyWorkout,
+        history,
 
         currentSplit,
         excludeExercise,
@@ -25,10 +29,27 @@ export const Home: React.FC = () => {
         openaiApiKey,
         isGenerating,
         generationStatus,
-        setSplit
+        setSplit,
+        logExercisePerformance, // Added for LogModal
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
+
+    // NEW: Log Modal State and Handlers
+    const [logModalOpen, setLogModalOpen] = React.useState(false);
+    const [selectedExerciseForLog, setSelectedExerciseForLog] = React.useState<any | null>(null);
+
+    const handleLogClick = (exercise: any) => {
+        setSelectedExerciseForLog(exercise);
+        setLogModalOpen(true);
+    };
+
+    const handleSaveLog = (val: string) => {
+        if (selectedExerciseForLog) {
+            logExercisePerformance(selectedExerciseForLog.id, val);
+        }
+        setLogModalOpen(false); // Close modal after saving
+    };
 
     // Smart Instruction Generator (simulating AI)
     const getSmartInstructions = (exercise: any) => {
@@ -79,6 +100,8 @@ export const Home: React.FC = () => {
 
     // NEW: Fun Loader State
     // isGenerating is now destructured from useWorkout()
+
+    const stats = React.useMemo(() => ProgressionService.getBig4Stats(history), [history]);
 
     return (
         <div className="relative pb-24 px-4 pt-6 max-w-xl mx-auto space-y-6">
@@ -140,6 +163,15 @@ export const Home: React.FC = () => {
                 )}
             </AnimatePresence>
 
+            {/* Log Modal */}
+            <LogModal
+                isOpen={logModalOpen}
+                onClose={() => setLogModalOpen(false)}
+                onSave={handleSaveLog}
+                initialValue={selectedExerciseForLog?.reps || ""}
+                exerciseName={selectedExerciseForLog?.name || ""}
+            />
+
             {/* Header and Controls */}
             <div className="flex flex-col gap-4">
                 {!openaiApiKey && (
@@ -197,6 +229,13 @@ export const Home: React.FC = () => {
 
             </div>
 
+            {/* Progression Card */}
+            {history.length > 0 && (
+                <div className="mb-4">
+                    <ProgressionCard stats={stats} />
+                </div>
+            )}
+
             {/* Exercise List */}
             <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8 list-none">
                 <AnimatePresence mode="popLayout">
@@ -208,6 +247,7 @@ export const Home: React.FC = () => {
                             setPreviewImage={setPreviewImage}
                             replaceExercise={replaceExercise}
                             excludeExercise={excludeExercise}
+                            onLogClick={handleLogClick} // Pass the new handler
                         />
                     ))}
                 </AnimatePresence>
@@ -233,11 +273,15 @@ const ExerciseItem = ({
     toggleExerciseCompletion,
     setPreviewImage,
     replaceExercise,
-    excludeExercise
+    excludeExercise,
+    onLogClick // Added onLogClick prop
 }: any) => {
     const controls = useDragControls();
-    const { favorites, toggleFavorite } = useWorkout();
+    const { favorites, toggleFavorite } = useWorkout(); // Removed logExercisePerformance: logContext
     const timeoutRef = React.useRef<any>(null);
+    // Removed isEditing, weight, reps, weightRef states
+
+    // Removed useEffect for isEditing and handleLogSubmit
 
     const isFavorite = favorites.includes(exercise.name);
 
@@ -328,8 +372,11 @@ const ExerciseItem = ({
                                 <span className="text-[10px] px-1.5 py-0.5 rounded w-fit bg-slate-800 text-slate-400 border border-slate-700 uppercase tracking-wider truncate max-w-[100px]">
                                     {exercise.muscleGroup}
                                 </span>
-                                <p className="text-[10px] text-slate-500 truncate">
-                                    {exercise.reps}
+                                <p
+                                    onClick={(e) => { e.stopPropagation(); onLogClick(exercise); }}
+                                    className="text-[10px] text-slate-500 truncate cursor-pointer hover:text-blue-400 flex items-center gap-1 w-fit focus:bg-white/10 rounded px-1 -ml-1 transition-colors"
+                                >
+                                    {exercise.reps} <span className="text-slate-600">✏️</span>
                                 </p>
                             </div>
 

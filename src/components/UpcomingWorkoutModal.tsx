@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CalendarDays, X } from 'lucide-react';
 import { useWorkout } from '../context/WorkoutContext';
-import type { WorkoutExercise } from '../context/WorkoutContext';
+import type { WorkoutExercise } from '../types';
 
 interface UpcomingWorkoutModalProps {
     isOpen: boolean;
