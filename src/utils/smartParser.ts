@@ -33,10 +33,14 @@ const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: stri
         return null;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     try {
         console.log("SmartParser: Calling OpenAI with key length:", apiKey.length);
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
+            signal: controller.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
@@ -50,6 +54,7 @@ const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: stri
                 temperature: 0.3
             })
         });
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
             const errText = await res.text();
@@ -60,7 +65,8 @@ const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: stri
         const data = await res.json();
         return data.choices?.[0]?.message?.content || null;
     } catch (e) {
-        console.error('OpenAI Network/Fetch Failed:', e);
+        clearTimeout(timeoutId);
+        console.error('OpenAI Network/Fetch Failed or Timed Out:', e);
         return null; // Fallback to regex
     }
 };
@@ -178,11 +184,18 @@ export const SmartParser = {
 
         if (aiResponse) {
             try {
-                const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(jsonStr);
-                if (Array.isArray(parsed)) return parsed;
+                // Heuristic: If response is just a list, clean it heavily
+                const clean = aiResponse
+                    .replace(/```json/g, '')
+                    .replace(/```/g, '')
+                    .replace(/^\s*\[/, '[')
+                    .replace(/\]\s*$/, ']')
+                    .trim();
+
+                const parsed = JSON.parse(clean);
+                if (Array.isArray(parsed)) return parsed.map(s => typeof s === 'string' ? s : '').filter(Boolean);
             } catch (e) {
-                console.warn('AI Batch Filter Error, falling back to regex', e);
+                console.warn('AI Batch Filter Parsing Error:', e, aiResponse.substring(0, 100));
             }
         }
 

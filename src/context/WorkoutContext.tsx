@@ -60,6 +60,7 @@ interface WorkoutContextType extends WorkoutState {
     setGenerationStatus: (status: string | undefined) => void;
     setProgramMode: (mode: 'standard' | 'upper_body_cycle') => void;
     logExercisePerformance: (exerciseId: string, performance: string) => void;
+    clearHistory: () => Promise<void>;
 }
 
 import { supabase } from '../services/supabase';
@@ -800,6 +801,18 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setState(prev => ({ ...prev, isGenerating }));
     };
 
+    const setGenerationStatus = (status: string | undefined) => {
+        setState(prev => ({ ...prev, generationStatus: status }));
+    };
+
+    const clearHistory = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await UserService.clearAllHistory(user.id);
+            setState(prev => ({ ...prev, history: [] }));
+        }
+    };
+
     const setFocusArea = (area: string) => {
         // 1. Start Loader immediately
         setIsGenerating(true);
@@ -1231,9 +1244,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return data?.openai_api_key === testKey ? "SUCCESS: Read/Write confirmed" : "FAILURE: Read mismatch";
     };
 
-    const setGenerationStatus = (status: string | undefined) => {
-        setState(prev => ({ ...prev, generationStatus: status }));
-    };
+
 
     const setProgramMode = async (mode: 'standard' | 'upper_body_cycle') => {
         // 1. Show Fun Loader
@@ -1281,11 +1292,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setOpenaiApiKey,
         testPersistence,
         toggleLegs,
-        setIsGenerating,
-        setGenerationStatus,
         setSplit,
         setProgramMode,
-        logExercisePerformance
+        setIsGenerating,
+        setGenerationStatus,
+        logExercisePerformance, // Added for LogModal
+        clearHistory
     };
 
     return (

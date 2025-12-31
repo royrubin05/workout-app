@@ -135,6 +135,10 @@ export class UserService {
         return supabase.from('workout_history').delete().eq('id', id);
     }
 
+    static async clearAllHistory(userId: string) {
+        return supabase.from('workout_history').delete().eq('user_id', userId);
+    }
+
     static async addCustomExercise(userId: string, exercise: any) {
         // Custom exercises are array in user_settings JSONB or separate table?
         // Context code: `supabase.from('custom_exercises').insert(...)` -> Wait, line 935: `from('custom_exercises')`

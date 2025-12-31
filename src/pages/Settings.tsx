@@ -21,7 +21,8 @@ export const Settings: React.FC = () => {
         includeLegs, // Added by user's instruction
         toggleLegs, // Added by user's instruction
 
-        cycleIndex
+        cycleIndex,
+        clearHistory
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
@@ -60,6 +61,7 @@ export const Settings: React.FC = () => {
     });
     const [showSuccessModal, setShowSuccessModal] = React.useState(false); // Success modal state
     const [customSuccessExercise, setCustomSuccessExercise] = useState<any>(null); // New state for modal data
+    const [showResetConfirm, setShowResetConfirm] = useState(false); // Reset modal state
 
 
     return (
@@ -488,6 +490,61 @@ export const Settings: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* DANGER ZONE (Disabled after initial reset)
+            <div className="glass-card p-6 border-red-500/20">
+                <h3 className="text-red-400 font-bold mb-2 flex items-center gap-2">
+                    <Trash2 size={16} /> Danger Zone
+                </h3>
+                <button
+                    onClick={() => setShowResetConfirm(true)}
+                    className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-lg border border-red-500/20 transition-colors"
+                >
+                    Reset Account Data
+                </button>
+            </div>
+            */}
+
+            {/* RESET CONFIRMATION MODAL */}
+            {showResetConfirm && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setShowResetConfirm(false)}
+                >
+                    <div
+                        className="bg-slate-900 border border-red-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4 text-red-500">
+                                <Trash2 size={32} />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">Are you sure?</h3>
+                            <p className="text-slate-400 text-sm mb-6">
+                                This will permanently delete your workout history and 1RM stats. This action cannot be undone.
+                            </p>
+                            <div className="flex gap-3 w-full">
+                                <button
+                                    onClick={() => setShowResetConfirm(false)}
+                                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        clearHistory();
+                                        setShowResetConfirm(false);
+                                        // Optional: Show success toast
+                                    }}
+                                    className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-colors"
+                                >
+                                    Delete Everything
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="text-center text-xs text-slate-600 font-medium pb-8">
                 v1.23

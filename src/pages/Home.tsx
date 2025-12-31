@@ -151,12 +151,38 @@ export const Home: React.FC = () => {
                                     <X size={24} />
                                 </button>
                             </div>
-                            <div className="p-4 bg-black flex items-center justify-center grow overflow-hidden">
-                                <img
-                                    src={previewImage.gifUrl}
-                                    alt={previewImage.name}
-                                    className="max-w-full max-h-[50vh] object-contain rounded-lg"
-                                />
+                            <div className="p-4 bg-black flex items-center justify-center grow overflow-hidden flex-col">
+                                {previewImage.gifUrl ? (
+                                    <>
+                                        <img
+                                            src={previewImage.gifUrl}
+                                            alt={previewImage.name}
+                                            className="max-w-full max-h-[50vh] object-contain rounded-lg"
+                                            onError={(e) => {
+                                                const target = e.target as HTMLImageElement;
+                                                target.style.display = 'none';
+                                                target.nextElementSibling?.classList.remove('hidden');
+                                                target.nextElementSibling?.classList.add('flex');
+                                            }}
+                                        />
+                                        {/* Fallback for broken image (sibling) */}
+                                        <div className="hidden flex-col items-center justify-center h-64 text-slate-500">
+                                            <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-4 text-4xl">
+                                                ⚠️
+                                            </div>
+                                            <p className="font-bold">Image Failed to Load</p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                                        <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-4 text-4xl">
+                                            💪
+                                        </div>
+                                        <p className="font-bold">No Preview Available</p>
+                                        <p className="text-xs mt-2">Try searching YouTube for:</p>
+                                        <p className="text-sm font-bold text-white">"{previewImage.name} form"</p>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>
@@ -230,11 +256,13 @@ export const Home: React.FC = () => {
             </div>
 
             {/* Progression Card */}
-            {history.length > 0 && (
-                <div className="mb-4">
-                    <ProgressionCard stats={stats} />
-                </div>
-            )}
+            {
+                history.length > 0 && (
+                    <div className="mb-4">
+                        <ProgressionCard stats={stats} />
+                    </div>
+                )
+            }
 
             {/* Exercise List */}
             <Reorder.Group axis="y" values={dailyWorkout} onReorder={reorderWorkout} className="space-y-3 pb-8 list-none">
