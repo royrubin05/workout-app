@@ -1,4 +1,5 @@
-import { supabase } from './supabase';
+import { createClient } from '@supabase/supabase-js';
+import { supabase, supabaseUrl, supabaseAnonKey } from './supabase';
 import type { WorkoutExercise } from '../types';
 
 export interface UserState {
@@ -20,30 +21,105 @@ export interface UserState {
 }
 
 export class UserService {
-    static async authenticate() {
-        let authData = null;
-        let authError = null;
+    static async signIn(email: string, password: string) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+        if (error) throw error;
+        return data.user;
+    }
 
-        ({ data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: 'roy.rubin@gmail.com',
-            password: 'password123',
-        }));
+    static async signUp(email: string, password: string) {
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+        });
+        if (error) throw error;
+        return data.user;
+    }
 
-        if (authError || !authData?.session) {
-            console.log('Login failed, trying signup/session check...');
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (sessionData.session) {
-                authData = sessionData;
-            } else {
-                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                    email: 'roy.rubin@gmail.com',
-                    password: 'password123',
+    /**
+     * Admin: Create a new user without logging out the current admin.
+     * Uses a temporary, non-persisting client instance.
+     */
+    static async createUser(email: string, password: string) {
+        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: false, // CRITICAL: Do not overwrite the admin's session in localStorage
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+            }
+        });
+
+        const { data, error } = await tempClient.auth.signUp({
+            email,
+            password
+        });
+
+        // Handle "User already registered" case (Ghost User)
+        if (error) {
+            // Check if user already exists
+            if (error.message.includes('already registered') || error.code === 'user_already_exists') {
+                console.warn('User exists. Attempting recovery (Ghost User check)...');
+
+                // Try to login with the provided password
+                const { data: loginData, error: loginError } = await tempClient.auth.signInWithPassword({
+                    email,
+                    password
                 });
-                if (signUpData.session) authData = signUpData;
-                else if (signUpError) throw signUpError;
+
+                if (loginError) {
+                    // Password mismatch or other issue
+                    throw new Error(`User already exists, but password was incorrect. Cannot recover.`);
+                }
+
+                // User exists and we learned the credentials are valid.
+                // Fall through to profile creation below using loginData.user
+                if (loginData.user) {
+                    // Ensure we use the logged-in user for profile creation
+                    const { error: profileError } = await tempClient
+                        .from('profiles')
+                        .insert({
+                            id: loginData.user.id,
+                            email: loginData.user.email,
+                            role: 'user'
+                        });
+                    // If duplicate key error on profile, it means profile ALREADY exists too.
+                    if (profileError) {
+                        if (profileError.code === '23505') { // Unique violation
+                            throw new Error('User and Profile already exist.');
+                        }
+                        throw new Error(`Recovered user but failed to create profile: ${profileError.message}`);
+                    }
+                    return loginData.user;
+                }
+            }
+            throw error; // Other errors
+        }
+
+        // Standard Success Path (New User)
+        if (data.user) {
+            const { error: profileError } = await tempClient
+                .from('profiles')
+                .insert({
+                    id: data.user.id,
+                    email: data.user.email,
+                    role: 'user'
+                });
+
+            if (profileError) {
+                console.error('Failed to create profile:', profileError);
+                throw new Error(`User created but profile failed: ${profileError.message}`);
             }
         }
-        return authData?.session?.user;
+
+        return data.user;
+    }
+
+    static async signOut() {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
     }
 
     static async loadUserData(userId: string) {
@@ -56,6 +132,7 @@ export class UserService {
 
         if (settingsError && settingsError.code !== 'PGRST116') { // Ignore 'not found'
             console.error('Error loading settings:', settingsError);
+            throw settingsError;
         }
 
         // 2. History
@@ -66,6 +143,7 @@ export class UserService {
 
         if (historyError) {
             console.error('Error loading history:', historyError);
+            throw historyError;
         }
 
         return {
@@ -158,6 +236,48 @@ export class UserService {
             user_id: userId,
             ...exercise
         });
+    }
+
+    static async getAppConfig() {
+        // Shared Key Model: Authenticated users can read config
+        const { data, error } = await supabase
+            .from('app_config')
+            .select('openai_api_key, maintenance_mode')
+            .eq('id', 1)
+            .single();
+
+        if (error) {
+            console.warn('Failed to load App Config:', error);
+            return null;
+        }
+        return data;
+    }
+
+    static async updateAppConfig(config: { openai_api_key?: string, maintenance_mode?: boolean }) {
+        const { error } = await supabase
+            .from('app_config')
+            .update(config)
+            .eq('id', 1);
+        return error;
+    }
+
+    static async getUserRole(userId: string) {
+        const { data } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+        return data?.role || 'user';
+    }
+
+    static async getProfiles() {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data;
     }
 
     static async getCurrentUser() {

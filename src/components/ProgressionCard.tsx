@@ -17,7 +17,7 @@ export const ProgressionCard: React.FC<ProgressionCardProps> = ({ stats }) => {
     const items = [
         { label: 'Bench Press', val: stats.horizontalPush, log: stats.lastLogs.horizontalPush, color: 'bg-blue-500' },
         { label: 'Overhead Press', val: stats.verticalPush, log: stats.lastLogs.verticalPush, color: 'bg-emerald-500' },
-        { label: 'Weighted Pull-up', val: stats.verticalPull, log: stats.lastLogs.verticalPull, color: 'bg-amber-500' },
+        { label: 'Lat Pulldown', val: stats.verticalPull, log: stats.lastLogs.verticalPull, color: 'bg-amber-500' },
         { label: 'Heavy Row', val: stats.horizontalPull, log: stats.lastLogs.horizontalPull, color: 'bg-purple-500' },
     ];
 

@@ -3,6 +3,7 @@ import { useWorkout } from '../context/WorkoutContext';
 import { Dumbbell, Star, Plus, Trash2, CalendarDays, CheckCircle2, History as HistoryIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
+import { UserService } from '../services/UserService'; // Added import
 
 export const Settings: React.FC = () => {
     const {
@@ -22,14 +23,14 @@ export const Settings: React.FC = () => {
         toggleLegs, // Added by user's instruction
 
         cycleIndex,
-        clearHistory
+        clearHistory,
+        isAdmin
     } = useWorkout();
 
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
     const [showUpcomingModal, setShowUpcomingModal] = useState(false);
     const [selectedFavorite, setSelectedFavorite] = useState<string | null>(null);
     const [apiKey, setApiKey] = useState(openaiApiKey || '');
-    const [showKeyInput, setShowKeyInput] = useState(false);
 
     // Update local key state when context updates (e.g. from cloud load)
     React.useEffect(() => {
@@ -46,12 +47,6 @@ export const Settings: React.FC = () => {
             setLocalProfile(userEquipmentProfile);
         }
     }, [userEquipmentProfile]);
-
-    // Save API Key
-    const handleSaveKey = (key: string) => {
-        setApiKey(key);
-        setOpenaiApiKey(key);
-    };
 
     // Custom Exercise Form State
     const [newExercise, setNewExercise] = useState({
@@ -136,14 +131,15 @@ export const Settings: React.FC = () => {
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold text-white">Settings</h1>
 
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setShowKeyInput(!showKeyInput)}
-                        className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
-                            }`}
-                    >
-                        {apiKey ? 'AI Active' : 'Enable AI'}
-                    </button>
+                <div className="flex items-center gap-2">
+                    {isAdmin && (
+                        <Link to="/admin" className="text-xs font-bold text-purple-400 hover:text-purple-300 mr-2">
+                            ADMIN
+                        </Link>
+                    )}
+                    <div className={`text-xs px-3 py-1.5 rounded-full border ${apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                        {apiKey ? 'AI Active' : 'AI Offline'}
+                    </div>
                     {/* Sync Status Badge */}
                     <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
                         <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -156,31 +152,7 @@ export const Settings: React.FC = () => {
 
             {/* AI Key Input */}
             {/* AI Key Input */}
-            {showKeyInput && (
-                <div className="bg-slate-800/80 p-4 rounded-xl border border-indigo-500/30 mb-4 animate-in slide-in-from-top-2">
-                    <label className="text-xs font-bold text-indigo-300 mb-2 block">
-                        OPENAI API KEY
-                    </label>
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            placeholder="sk-..."
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                        />
-                        <button
-                            onClick={() => handleSaveKey(apiKey)}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold"
-                        >
-                            SAVE
-                        </button>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-2">
-                        This key is stored securely on your device and synced to your private database.
-                    </p>
-                </div>
-            )}
+            {/* AI Key Managed by Admin - Input Removed */}
 
             {/* Quick Actions Grid */}
             <div className="grid grid-cols-2 gap-4">
@@ -269,7 +241,7 @@ export const Settings: React.FC = () => {
                             </div>
                             {!apiKey && (
                                 <p className="text-[10px] text-red-400 mt-2 text-right">
-                                    * AI features require an API Key (Top Right)
+                                    * AI features disabled. Contact Admin to configure.
                                 </p>
                             )}
                         </div>
@@ -545,6 +517,19 @@ export const Settings: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* LOGOUT BUTTON */}
+            <div className="pt-6 border-t border-slate-800">
+                <button
+                    onClick={async () => {
+                        await UserService.signOut();
+                        // Redirect handled by Auth Listener in Context
+                    }}
+                    className="w-full py-3 text-slate-500 hover:text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                >
+                    Sign Out
+                </button>
+            </div>
 
             <div className="text-center text-xs text-slate-600 font-medium pb-8">
                 v1.23

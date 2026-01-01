@@ -33,6 +33,7 @@ interface WorkoutState {
     generationStatus?: string; // NEW: Status message for loader (e.g. "Consulting AI...")
     programMode: 'standard' | 'upper_body_cycle';
     cycleIndex: number; // 0-3 for ABCD cycle
+    isAdmin: boolean;
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -91,7 +92,8 @@ const initialState: WorkoutState = {
     includeLegs: true, // Default ON, removed localStorage
     isGenerating: false,
     programMode: 'upper_body_cycle', // Forced Default
-    cycleIndex: 0
+    cycleIndex: 0,
+    isAdmin: false
 };
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -133,72 +135,100 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, [isLoaded]);
 
     // --- SUPABASE AUTH & SYNC ---
-    // --- SUPABASE AUTH & SYNC ---
     useEffect(() => {
         const connectToCloud = async () => {
             try {
-                const user = await UserService.authenticate();
+                // 1. Check Session
+                const { data: { session } } = await supabase.auth.getSession();
 
-                if (user) {
-                    console.log('☁️ Connected to Cloud as:', user.email);
-
-                    // 2. Load Cloud Data
-                    const { settings: settingsData, history: historyData } = await UserService.loadUserData(user.id);
-
-                    console.log('☁️ Loaded Settings:', settingsData);
-
-                    // 4. Merge/Update State
-                    setState(prev => {
-                        const newEquipment = settingsData?.equipment || prev.equipment;
-                        const newExcluded = settingsData?.excluded_exercises || prev.excludedExercises || [];
-                        const newFavorites = settingsData?.favorites || prev.favorites || [];
-                        const newProfile = settingsData?.user_equipment_profile || prev.userEquipmentProfile || '';
-                        const newApiKey = settingsData?.openai_api_key || prev.openaiApiKey || '';
-                        const newAvailableExercises = settingsData?.available_exercise_names || prev.availableExerciseNames || [];
-                        const newIncludeLegs = settingsData?.include_legs !== undefined ? settingsData.include_legs : true;
-
-                        // Force Upper Body Cycle as default/only mode
-                        const newProgramMode = 'upper_body_cycle';
-                        const newCycleIndex = settingsData?.cycle_index !== undefined ? settingsData.cycle_index : 0;
-
-                        const newSplit = settingsData?.current_split || prev.currentSplit;
-                        const rawDaily = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : prev.dailyWorkout;
-                        // Sanitize: Deduplicate loaded workout
-                        const newDailyWorkout = (rawDaily || []).filter((ex: any, index: number, self: any[]) =>
-                            index === self.findIndex((t: any) => t.name === ex.name)
-                        );
-                        const newLastDate = settingsData?.last_workout_date || prev.lastWorkoutDate;
-                        const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : prev.completedToday;
-                        const newFocusArea = 'Default';
-
-                        const cloudHistory = historyData?.map((h: any) => ({
-                            date: h.date,
-                            split: h.split,
-                            exercises: typeof h.exercises === 'string' ? JSON.parse(h.exercises) : h.exercises
-                        })) || [];
-
-                        return {
-                            ...prev,
-                            equipment: newEquipment,
-                            excludedExercises: newExcluded,
-                            favorites: newFavorites,
-                            userEquipmentProfile: newProfile,
-                            openaiApiKey: newApiKey,
-                            availableExerciseNames: newAvailableExercises,
-                            includeLegs: newIncludeLegs,
-                            programMode: newProgramMode,
-                            cycleIndex: newCycleIndex,
-                            currentSplit: newSplit,
-                            dailyWorkout: newDailyWorkout,
-                            lastWorkoutDate: newLastDate,
-                            completedToday: newCompletedToday,
-                            focusArea: newFocusArea,
-                            history: cloudHistory.length > 0 ? cloudHistory : prev.history,
-                            connectionStatus: 'connected',
-                            lastSyncTime: new Date().toLocaleTimeString()
-                        };
-                    });
+                if (!session?.user) {
+                    console.warn('No active session found.');
+                    // If no session, we stay disconnected. 
+                    // ProtectedRoute will handle redirect.
+                    setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+                    return;
                 }
+
+                const user = session.user;
+                console.log('☁️ Connected to Cloud as:', user.email);
+
+                // Fetch Global Config (Shared Key Pattern)
+                const appConfig = await UserService.getAppConfig();
+                const globalKey = appConfig?.openai_api_key || '';
+
+                let userRole = 'user';
+
+                try {
+                    userRole = await UserService.getUserRole(user.id);
+                    console.log('👑 Role:', userRole);
+                } catch (e) {
+                    console.warn('Failed to fetch role', e);
+                }
+
+                // 2. Load Cloud Data
+                const { settings: settingsData, history: historyData } = await UserService.loadUserData(user.id);
+
+                console.log('☁️ Loaded Settings:', settingsData);
+
+                // 4. Merge/Update State
+                // CRITICAL FIX: Do NOT fallback to prev state for user-specific data.
+                // If cloud data is null/empty (new user), we must use defaults, NOT the previous user's data.
+                setState(prev => {
+                    const newEquipment = settingsData?.equipment || ''; // Default to empty if not in DB
+                    const newExcluded = settingsData?.excluded_exercises || [];
+                    const newFavorites = settingsData?.favorites || [];
+                    const newProfile = settingsData?.user_equipment_profile || '';
+
+                    // Use Global Key if present, otherwise fallback to User Key (migration support)
+                    const newApiKey = globalKey || settingsData?.openai_api_key || '';
+
+                    const newAvailableExercises = settingsData?.available_exercise_names || [];
+                    const newIncludeLegs = settingsData?.include_legs !== undefined ? settingsData.include_legs : true;
+
+                    // Force Upper Body Cycle as default/only mode
+                    const newProgramMode = 'upper_body_cycle';
+                    const newCycleIndex = settingsData?.cycle_index !== undefined ? settingsData.cycle_index : 0;
+
+                    const newSplit = settingsData?.current_split || 'Push';
+                    const rawDaily = settingsData?.daily_workout ? (typeof settingsData.daily_workout === 'string' ? JSON.parse(settingsData.daily_workout) : settingsData.daily_workout) : [];
+
+                    // Sanitize: Deduplicate loaded workout
+                    const newDailyWorkout = (rawDaily || []).filter((ex: any, index: number, self: any[]) =>
+                        index === self.findIndex((t: any) => t.name === ex.name)
+                    );
+                    const newLastDate = settingsData?.last_workout_date || null;
+                    const newCompletedToday = settingsData?.completed_today !== undefined ? settingsData.completed_today : false;
+                    const newFocusArea = 'Default';
+
+                    const cloudHistory = historyData?.map((h: any) => ({
+                        date: h.date, // ISO string
+                        split: h.split,
+                        exercises: typeof h.exercises === 'string' ? JSON.parse(h.exercises) : h.exercises
+                    })) || [];
+
+                    return {
+                        ...prev,
+                        equipment: newEquipment,
+                        excludedExercises: newExcluded,
+                        favorites: newFavorites,
+                        userEquipmentProfile: newProfile,
+                        openaiApiKey: newApiKey,
+                        availableExerciseNames: newAvailableExercises,
+                        includeLegs: newIncludeLegs,
+                        programMode: newProgramMode,
+                        cycleIndex: newCycleIndex,
+                        currentSplit: newSplit,
+                        dailyWorkout: newDailyWorkout,
+                        lastWorkoutDate: newLastDate,
+                        completedToday: newCompletedToday,
+                        focusArea: newFocusArea,
+                        history: cloudHistory, // Always use cloud history, even if empty
+                        connectionStatus: 'connected',
+                        lastSyncTime: new Date().toLocaleTimeString(),
+                        isAdmin: userRole === 'admin'
+                    };
+                });
+
             } catch (e: any) {
                 console.error('Cloud Connection Error:', e);
                 setState(prev => ({
@@ -208,7 +238,26 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }));
             }
         };
+
+        // Listen for Auth State Changes (e.g. SignOut)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                connectToCloud();
+            } else {
+                console.log('👋 User logged out. Resetting state.');
+                // CRITICAL: Reset to initial state to prevent data bleeding to next user
+                setState({
+                    ...initialState,
+                    // Preserve generic loading states if needed, though usually fine to reset
+                    connectionStatus: 'disconnected',
+                    isAdmin: false
+                });
+            }
+        });
+
         connectToCloud();
+
+        return () => subscription.unsubscribe();
     }, []);
 
     // Sync State changes to Cloud
@@ -360,7 +409,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 const daysAgo = lastWorkout ? Math.floor((Date.now() - new Date(lastWorkout.date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
                 // 3. Call AI
-                const result = await SmartParser.generateAdvancedCycle(apiKey, state.equipment, lastType, daysAgo, statsStr);
+                const result = await SmartParser.generateAdvancedCycle(apiKey, state.userEquipmentProfile, lastType, daysAgo, statsStr);
 
                 if (result.success && result.workout) {
                     const aiPlan = result.workout.exercises;
@@ -1108,23 +1157,47 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
-    const toggleFavorite = (exerciseName: string) => {
+    const toggleFavorite = async (exerciseName: string) => {
+        let newFavorites: string[] = [];
+
         setState(prev => {
             const isFav = prev.favorites.includes(exerciseName);
+            newFavorites = isFav
+                ? prev.favorites.filter(n => n !== exerciseName)
+                : [...prev.favorites, exerciseName];
+
             return {
                 ...prev,
-                favorites: isFav
-                    ? prev.favorites.filter(n => n !== exerciseName)
-                    : [...prev.favorites, exerciseName]
+                favorites: newFavorites
             };
         });
+
+        // Persist
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('user_settings').upsert({
+                id: user.id,
+                favorites: newFavorites
+            });
+        }
     };
 
-    const deleteCustomExercise = (exerciseName: string) => {
+    const deleteCustomExercise = async (exerciseName: string) => {
         setState(prev => ({
             ...prev,
             customExercises: prev.customExercises.filter(e => e.name !== exerciseName)
         }));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { error } = await supabase
+                .from('custom_exercises')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('name', exerciseName); // Assumes name is unique per user or close enough
+
+            if (error) console.error('Failed to delete custom exercise', error);
+        }
     };
 
     const updateUserEquipmentProfile = async (profile: string) => {
@@ -1169,6 +1242,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } else {
             console.warn("⚠️ Cannot save profile: User not logged in.");
         }
+
+        // 5. Trigger Regeneration
+        setIsGenerating(true);
+        setTimeout(() => {
+            generateWorkout(state.currentSplit, 'Default');
+            setTimeout(() => setIsGenerating(false), 500);
+        }, 1000);
     };
 
     const setOpenaiApiKey = async (key: string) => {

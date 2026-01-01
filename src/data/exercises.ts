@@ -32,8 +32,8 @@ export const BASE_MOVEMENTS = [
     { name: 'Close Grip Bench Press', category: 'Push', muscles: 'Triceps', equipment: ['Barbell', 'Smith Machine', 'Dumbbells'] },
 
     // PULL (Back, Biceps, Rear Delts)
-    { name: 'Pull-ups', category: 'Pull', muscles: 'Back', equipment: ['Pull-up Bar', 'Assisted Machine', 'Weighted'] },
-    { name: 'Chin-ups', category: 'Pull', muscles: 'Back', equipment: ['Pull-up Bar', 'Assisted Machine', 'Weighted'] },
+    { name: 'Pull-ups', category: 'Pull', muscles: 'Back', equipment: ['Pull-up Bar', 'Assisted Machine'] },
+    { name: 'Chin-ups', category: 'Pull', muscles: 'Back', equipment: ['Pull-up Bar', 'Assisted Machine'] },
     { name: 'Bent Over Rows', category: 'Pull', muscles: 'Back', equipment: ['Barbell', 'Dumbbells', 'Kettlebell', 'Smith Machine', 'Bands', 'T-Bar'] },
     { name: 'Lat Pulldowns', category: 'Pull', muscles: 'Back', equipment: ['Cable', 'Machine', 'Bands'] },
     { name: 'Neutral Grip Lat Pulldown', category: 'Pull', muscles: 'Back', equipment: ['Cable', 'Machine', 'Bands'] },
@@ -41,7 +41,7 @@ export const BASE_MOVEMENTS = [
     { name: 'Hammer Strength Row', category: 'Pull', muscles: 'Back', equipment: ['Machine'] },
     { name: 'Face Pulls', category: 'Pull', muscles: 'Rear Delts', equipment: ['Cable', 'Bands'] },
     { name: 'Bicep Curls', category: 'Pull', muscles: 'Biceps', equipment: ['Barbell', 'Dumbbells', 'Cables', 'Bands', 'EZ Bar', 'Machine', 'Plate'] },
-    { name: 'Neutral Grip Pull-ups', category: 'Pull', muscles: 'Back', equipment: ['Pull-up Bar', 'Assisted Machine', 'Weighted'] },
+    { name: 'Neutral Grip Pull-ups', category: 'Pull', muscles: 'Back', equipment: ['Pull-up Bar', 'Assisted Machine'] },
     { name: 'Hammer Curls', category: 'Pull', muscles: 'Biceps', equipment: ['Dumbbells', 'Cables', 'Bands', 'Rope'] },
     { name: 'Preacher Curls', category: 'Pull', muscles: 'Biceps', equipment: ['Barbell', 'Dumbbells', 'Machine', 'EZ Bar'] },
     { name: 'Concentration Curls', category: 'Pull', muscles: 'Biceps', equipment: ['Dumbbells', 'Kettlebell'] },
