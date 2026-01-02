@@ -34,6 +34,7 @@ interface WorkoutState {
     programMode: 'standard' | 'upper_body_cycle';
     cycleIndex: number; // 0-3 for ABCD cycle
     isAdmin: boolean;
+    strategyInsight?: string; // NEW: AI Strategy explanation
 }
 
 interface WorkoutContextType extends WorkoutState {
@@ -62,6 +63,7 @@ interface WorkoutContextType extends WorkoutState {
     setProgramMode: (mode: 'standard' | 'upper_body_cycle') => void;
     logExercisePerformance: (exerciseId: string, performance: string) => void;
     clearHistory: () => Promise<void>;
+    refineWorkout: (prompt: string) => Promise<void>;
 }
 
 import { supabase } from '../services/supabase';
@@ -93,7 +95,8 @@ const initialState: WorkoutState = {
     isGenerating: false,
     programMode: 'upper_body_cycle', // Forced Default
     cycleIndex: 0,
-    isAdmin: false
+    isAdmin: false,
+    strategyInsight: undefined
 };
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -614,6 +617,85 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
 
         setIsGenerating(false);
+    };
+
+    const refineWorkout = async (prompt: string) => {
+        if (!state.openaiApiKey) {
+            alert("AI Key required for refinement.");
+            return;
+        }
+
+        console.log(`🔧 Refining Workout with Prompt: "${prompt}"`);
+        setState(prev => ({ ...prev, isGenerating: true, generationStatus: "Refining Plan... 🔧" }));
+
+        try {
+            const currentExercises = state.dailyWorkout.map(e => ({
+                name: e.name,
+                sets: e.sets || "3",
+                reps: e.reps || "10",
+                note: e.notes
+            }));
+
+            // Pass filtered whitelist
+            const equipmentValidExercises = getAvailableExercises(state.equipment, 'Full Body');
+            const whitelist = equipmentValidExercises.map(e => e.name);
+
+            const result = await SmartParser.generateRefinedWorkout(
+                state.openaiApiKey,
+                currentExercises,
+                prompt,
+                whitelist,
+                state.userEquipmentProfile,
+                state.favorites
+            );
+
+            if (result.exercises.length > 0) {
+                // Remap to workout objects
+                // We reuse the logic from generateWorkout roughly, but simpler potentially
+                const mappedWorkout: WorkoutExercise[] = result.exercises.map((step, idx) => {
+                    const allPool = [...allExercises, ...state.customExercises];
+                    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const stepNorm = normalize(step.name);
+
+                    let existing = allPool.find(ex => normalize(ex.name) === stepNorm);
+                    if (!existing) {
+                        existing = allPool.find(ex => {
+                            const exNorm = normalize(ex.name);
+                            return exNorm.includes(stepNorm) || stepNorm.includes(exNorm);
+                        });
+                    }
+
+                    return {
+                        id: existing?.id || `ai-refined-${idx}-${Date.now()}`,
+                        name: existing?.name || step.name,
+                        category: (existing?.category || 'Full Body') as any, // Preserve or guess
+                        muscleGroup: existing?.muscleGroup || 'Full Body',
+                        equipment: existing?.equipment || 'Bodyweight',
+                        gifUrl: existing?.gifUrl,
+                        type: (existing?.type || 'Isolation') as any,
+                        sets: step.sets,
+                        reps: step.reps,
+                        notes: step.note,
+                        completed: false
+                    };
+                });
+
+                setState(prev => ({
+                    ...prev,
+                    dailyWorkout: mappedWorkout,
+                    strategyInsight: result.strategy,
+                    generationStatus: undefined,
+                    isGenerating: false,
+                    focusArea: 'Custom: ' + (prompt.length > 20 ? prompt.substring(0, 20) + '...' : prompt)
+                }));
+            } else {
+                setState(prev => ({ ...prev, isGenerating: false, generationStatus: undefined }));
+            }
+
+        } catch (e) {
+            console.error("Refine Failed", e);
+            setState(prev => ({ ...prev, isGenerating: false, generationStatus: undefined }));
+        }
     };
 
     const updateEquipment = (eqString: string) => {
@@ -1377,7 +1459,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsGenerating,
         setGenerationStatus,
         logExercisePerformance, // Added for LogModal
-        clearHistory
+        clearHistory,
+        refineWorkout
     };
 
     return (

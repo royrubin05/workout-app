@@ -17,7 +17,7 @@ export const Settings: React.FC = () => {
         userEquipmentProfile, // Added state access
         updateUserEquipmentProfile,
         openaiApiKey,
-        setOpenaiApiKey,
+
         connectionStatus,
         includeLegs, // Added by user's instruction
         toggleLegs, // Added by user's instruction

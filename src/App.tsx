@@ -8,7 +8,7 @@ import { AdminPage } from './pages/Admin';
 import { Login } from './pages/Login';
 
 // Protected Route Wrapper
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
   const { connectionStatus } = useWorkout();
   const location = useLocation();
 
@@ -25,7 +25,7 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
 };
 
 // Public Route Wrapper (redirects to Home if already logged in)
-const PublicRoute = ({ children }: { children: JSX.Element }) => {
+const PublicRoute = ({ children }: { children: React.ReactElement }) => {
   const { connectionStatus } = useWorkout();
 
   if (connectionStatus === 'connected') {

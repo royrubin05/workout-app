@@ -285,6 +285,65 @@ export const SmartParser = {
     },
 
     /**
+     * Refines an EXISTING workout based on custom user instructions (e.g. "I have a shoulder injury").
+     */
+    generateRefinedWorkout: async (
+        apiKey: string,
+        currentWorkout: { name: string, sets: string, reps: string, note?: string }[],
+        userInstructions: string,
+        availableExercises: string[],
+        equipmentProfile: string,
+        favorites: string[] = []
+    ): Promise<{ strategy: string, exercises: { name: string, sets: string, reps: string, note: string }[] }> => {
+
+        const currentList = currentWorkout.map(e => `- ${e.name} (${e.sets}x${e.reps})`).join('\n');
+
+        const prompt = `
+        Refine the following workout plan based on the user's custom instructions.
+        
+        Current Plan:
+        ${currentList}
+
+        User Equipment: ${equipmentProfile || "Bodyweight"}
+        USER INSTRUCTIONS: "${userInstructions}"
+
+        Available Whitelist (Use primarily these if you need to replace exercises): 
+        ${availableExercises.slice(0, 100).join(', ')}...
+        
+        Favorites: ${favorites.join(', ')}
+
+        Task:
+        1. Modify the Current Plan to strictly adhere to the USER INSTRUCTIONS.
+        2. Replace exercises that violate the instructions (e.g. if "Shoulder Injury", remove Overhead Press and replace with safer alternative or nothing).
+        3. Maintain the overall structure/volume if possible, unless instructed otherwise.
+        4. Return the complete, updated list of exercises in JSON format.
+
+        Return JSON OBJECT: { 
+            "strategy": "A specific advice explaining what you changed and why (e.g. 'Removed overhead pressing to protect your shoulder, added lateral raises instead.')",
+            "exercises": [{"name": "Exercise Name", "sets": "4", "reps": "8-12", "note": "Technique cue"}] 
+        }
+        `;
+
+        const response = await callOpenAI(apiKey, "You are an adaptive fitness coach. Return ONLY JSON.", prompt);
+        if (!response) return { strategy: "Could not refine workout.", exercises: [] };
+
+        try {
+            const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            const json = JSON.parse(jsonStr);
+            if (json.exercises && Array.isArray(json.exercises)) {
+                return {
+                    strategy: json.strategy || "Workout refined.",
+                    exercises: json.exercises
+                };
+            }
+            if (Array.isArray(json)) return { strategy: "Workout refined.", exercises: json };
+        } catch (e) {
+            console.error('AI Refine Parse Error:', e);
+        }
+        return { strategy: "Could not refine workout.", exercises: [] };
+    },
+
+    /**
      * Creates a NEW Exercise object from a natural language prompt.
      * Guaranteed to return a valid object for the DB.
      */

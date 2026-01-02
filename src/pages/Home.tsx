@@ -1,6 +1,6 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { RefreshCw, CheckCircle2, X, GripVertical, Zap, Star, Trash2, Circle } from 'lucide-react';
+import { RefreshCw, CheckCircle2, X, GripVertical, Zap, Star, Trash2, Circle, MessageSquarePlus, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
@@ -31,9 +31,22 @@ export const Home: React.FC = () => {
         generationStatus,
         setSplit,
         logExercisePerformance, // Added for LogModal
+        refineWorkout,
+        strategyInsight
     } = useWorkout();
     const [previewImage, setPreviewImage] = React.useState<any | null>(null);
     const [isCustomizeOpen, setIsCustomizeOpen] = React.useState(false);
+
+    // Custom Prompt State
+    const [isPromptOpen, setIsPromptOpen] = React.useState(false);
+    const [customPromptText, setCustomPromptText] = React.useState('');
+
+    const handleCustomRefine = async () => {
+        if (!customPromptText.trim()) return;
+        await refineWorkout(customPromptText);
+        setIsPromptOpen(false);
+        setCustomPromptText('');
+    };
 
     // NEW: Log Modal State and Handlers
     const [logModalOpen, setLogModalOpen] = React.useState(false);
@@ -253,6 +266,74 @@ export const Home: React.FC = () => {
 
                 </div>
 
+            </div>
+
+            {/* Custom AI Prompt Section */}
+            <div className="w-full">
+                <AnimatePresence mode="wait">
+                    {!isPromptOpen ? (
+                        <div className="flex flex-col gap-2">
+                            {/* Strategy Insight (If exists) */}
+                            {strategyInsight && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-xl text-indigo-200 text-sm flex gap-3"
+                                >
+                                    <Sparkles size={18} className="text-indigo-400 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="font-bold text-indigo-300 text-xs uppercase tracking-wide mb-1">AI Coach Strategy</p>
+                                        <p className="text-indigo-100 leading-relaxed">{strategyInsight}</p>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            <motion.button
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                onClick={() => setIsPromptOpen(true)}
+                                className="w-full py-2 px-3 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 text-sm font-medium hover:bg-slate-800 hover:text-white hover:border-slate-600 transition-all flex items-center justify-center gap-2 group"
+                            >
+                                <MessageSquarePlus size={16} className="group-hover:text-blue-400 transition-colors" />
+                                <span>Customize for injuries or specific needs...</span>
+                            </motion.button>
+                        </div>
+                    ) : (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg overflow-hidden"
+                        >
+                            <label className="block text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">
+                                AI Custom Instructions
+                            </label>
+                            <textarea
+                                value={customPromptText}
+                                onChange={(e) => setCustomPromptText(e.target.value)}
+                                placeholder="e.g. 'I have a sore lower back, avoid deadlifts' or 'Make it a HIT workout'..."
+                                className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-600 mb-3 min-h-[80px]"
+                                autoFocus
+                            />
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    onClick={() => setIsPromptOpen(false)}
+                                    className="px-3 py-1.5 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCustomRefine}
+                                    disabled={!customPromptText.trim()}
+                                    className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-lg shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                                >
+                                    <Sparkles size={14} />
+                                    Refine Workout
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Progression Card */}

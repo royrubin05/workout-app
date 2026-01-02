@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserService } from '../services/UserService';
 import { Lock, Save, Users, AlertTriangle, CheckCircle2, Shield, Plus, X } from 'lucide-react';
-import { useWorkout } from '../context/WorkoutContext';
+
 
 export const AdminPage: React.FC = () => {
     const navigate = useNavigate();
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [, setIsAdmin] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [apiKey, setApiKey] = useState('');
     const [profiles, setProfiles] = useState<any[]>([]);
