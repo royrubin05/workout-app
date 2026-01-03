@@ -1,6 +1,7 @@
 import React from 'react';
 import { useWorkout } from '../context/WorkoutContext';
 import { RefreshCw, CheckCircle2, X, GripVertical, Zap, Star, Trash2, Circle, MessageSquarePlus, Sparkles } from 'lucide-react';
+import { StrategyModal } from '../components/StrategyModal';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
@@ -40,6 +41,7 @@ export const Home: React.FC = () => {
     // Custom Prompt State
     const [isPromptOpen, setIsPromptOpen] = React.useState(false);
     const [customPromptText, setCustomPromptText] = React.useState('');
+    const [isStrategyOpen, setIsStrategyOpen] = React.useState(false);
 
     const handleCustomRefine = async () => {
         if (!customPromptText.trim()) return;
@@ -273,30 +275,33 @@ export const Home: React.FC = () => {
                 <AnimatePresence mode="wait">
                     {!isPromptOpen ? (
                         <div className="flex flex-col gap-2">
-                            {/* Strategy Insight (If exists) */}
-                            {strategyInsight && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="bg-indigo-500/10 border border-indigo-500/30 p-4 rounded-xl text-indigo-200 text-sm flex gap-3 shadow-lg shadow-indigo-900/10 backdrop-blur-sm"
-                                >
-                                    <Sparkles size={20} className="text-indigo-400 shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="font-bold text-indigo-300 text-xs uppercase tracking-widest mb-1">AI Strategy</p>
-                                        <p className="text-indigo-100 leading-relaxed font-medium">{strategyInsight}</p>
-                                    </div>
-                                </motion.div>
-                            )}
+                            {/* Combined AI Insights & Actions Area */}
+                            <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900/40 border border-indigo-500/20 rounded-xl p-4 space-y-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Sparkles size={16} className="text-indigo-400" />
+                                    <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider">AI Coach Insights</h3>
+                                </div>
 
-                            <motion.button
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                onClick={() => setIsPromptOpen(true)}
-                                className="w-full py-3 px-4 rounded-xl border border-slate-700/50 bg-gradient-to-r from-slate-800 to-slate-900 text-slate-400 text-sm font-bold hover:from-slate-700 hover:to-slate-800 hover:text-white hover:border-slate-500 transition-all flex items-center justify-center gap-2 group shadow-lg"
-                            >
-                                <MessageSquarePlus size={18} className="group-hover:text-blue-400 transition-colors" />
-                                <span>Customize workout...</span>
-                            </motion.button>
+                                {strategyInsight ? (
+                                    <div className="bg-slate-900/50 p-3 rounded-lg border border-indigo-500/10 mb-2">
+                                        <p className="text-sm text-slate-300 line-clamp-3 italic">"{strategyInsight}"</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-500 italic mb-2">
+                                        No active strategy. Enhance your workout below to get AI coaching.
+                                    </p>
+                                )}
+
+                                <motion.button
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    onClick={() => setIsPromptOpen(true)}
+                                    className="w-full py-2.5 px-4 rounded-lg border border-indigo-500/30 bg-indigo-600/10 text-indigo-200 text-sm font-bold hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all flex items-center justify-center gap-2 group"
+                                >
+                                    <MessageSquarePlus size={16} className="group-hover:scale-110 transition-transform" />
+                                    <span>Enhance Workout with a Prompt</span>
+                                </motion.button>
+                            </div>
                         </div>
                     ) : (
                         <motion.div
@@ -335,7 +340,7 @@ export const Home: React.FC = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
+            </div >
 
             {/* Progression Card */}
             {
@@ -372,7 +377,16 @@ export const Home: React.FC = () => {
                 )
             }
 
-            {/* Finish Workout Button REMOVED */}
+            {/* Modals */}
+            <StrategyModal
+                isOpen={isStrategyOpen}
+                onClose={() => setIsStrategyOpen(false)}
+                strategy={strategyInsight || ''}
+                focusArea={focusArea}
+            />
+
+            {/* Bottom Offset for Navigation */}
+            <div className="h-20" />
         </div >
     );
 };
@@ -389,9 +403,6 @@ const ExerciseItem = ({
     const controls = useDragControls();
     const { favorites, toggleFavorite } = useWorkout(); // Removed logExercisePerformance: logContext
     const timeoutRef = React.useRef<any>(null);
-    // Removed isEditing, weight, reps, weightRef states
-
-    // Removed useEffect for isEditing and handleLogSubmit
 
     const isFavorite = favorites.includes(exercise.name);
 

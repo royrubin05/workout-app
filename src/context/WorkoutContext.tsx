@@ -6,6 +6,7 @@ import { WorkoutEngine } from '../services/WorkoutEngine';
 import { ExerciseService } from '../services/ExerciseService';
 import { UserService } from '../services/UserService';
 import { ProgressionService } from '../services/ProgressionService';
+import { getStaticInsight } from '../data/insights';
 import type { WorkoutExercise, WorkoutHistory } from '../types';
 
 interface WorkoutState {
@@ -55,6 +56,7 @@ interface WorkoutContextType extends WorkoutState {
     deleteCustomExercise: (exerciseName: string) => void;
     updateUserEquipmentProfile: (profile: string) => Promise<void>;
     setOpenaiApiKey: (key: string) => void;
+    setApiKey: (key: string) => Promise<void>;
     testPersistence: () => Promise<string>;
     toggleLegs: (enabled: boolean) => void;
     setSplit: (split: string) => void;
@@ -90,7 +92,7 @@ const initialState: WorkoutState = {
     customExercises: [],
     userEquipmentProfile: '',
     availableExerciseNames: [],
-    openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY || '', // Load from env if available
+    openaiApiKey: '', // Loaded from App Config asynchronously
     includeLegs: true, // Default ON, removed localStorage
     isGenerating: false,
     programMode: 'upper_body_cycle', // Forced Default
@@ -108,22 +110,53 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [isUserDataLoaded, setIsUserDataLoaded] = useState(false); // NEW: Prevent sync until user data loaded
 
     // Load Exercises from DB on Mount
+    // Load Exercises from DB on Mount & Sync Config on Auth
     useEffect(() => {
-        const initializeData = async () => {
+        let mounted = true;
+
+        const init = async () => {
             try {
+                // 1. Load Exercises (Public/Static)
                 const exercises = await ExerciseService.getAllExercises();
-                setAllExercises(exercises);
-                // Simple heuristic for connection status based on if we got DB exercises (id starts with 'db-')
-                const isConnected = exercises.some(e => e.id.startsWith('db-'));
-                setState(prev => ({ ...prev, connectionStatus: isConnected ? 'connected' : 'disconnected' }));
+                if (mounted) {
+                    setAllExercises(exercises);
+                    const isConnected = exercises.some(e => e.id.startsWith('db-'));
+                    setState(prev => ({ ...prev, connectionStatus: isConnected ? 'connected' : 'disconnected' }));
+                    setIsLoaded(true);
+                }
+
+                // 2. Auth State Listener for Config
+                const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+                    console.log('🔐 Auth State Changed:', event, session?.user?.id);
+
+                    if (session?.user) {
+                        // User is authenticated, now we can fetch the protected config
+                        console.log('🔄 Fetching App Config (Auth Ready)...');
+                        const config = await UserService.getAppConfig();
+                        console.log('✅ Config Loaded:', config);
+
+                        if (mounted && config && config.openai_api_key) {
+                            const cleanKey = config.openai_api_key.trim();
+                            console.log('🔑 Setting Global API Key (Masked):', cleanKey.substring(0, 8) + '...');
+                            setState(prev => ({ ...prev, openaiApiKey: cleanKey }));
+                        }
+                    } else {
+                        console.warn('⚠️ User not authenticated. Cannot fetch global config.');
+                    }
+                });
+
+                return () => {
+                    authListener.subscription.unsubscribe();
+                };
             } catch (err) {
                 console.warn('Initialization Error', err);
-                setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-            } finally {
-                setIsLoaded(true);
+                if (mounted) setState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
             }
         };
-        initializeData();
+
+        init();
+
+        return () => { mounted = false; };
     }, []);
 
     // Loading Animation (UI only)
@@ -183,8 +216,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     const newFavorites = settingsData?.favorites || [];
                     const newProfile = settingsData?.user_equipment_profile || '';
 
-                    // Use Global Key if present, otherwise fallback to User Key (migration support)
-                    const newApiKey = globalKey || settingsData?.openai_api_key || '';
+
 
                     const newAvailableExercises = settingsData?.available_exercise_names || [];
                     const newIncludeLegs = settingsData?.include_legs !== undefined ? settingsData.include_legs : true;
@@ -216,7 +248,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         excludedExercises: newExcluded,
                         favorites: newFavorites,
                         userEquipmentProfile: newProfile,
-                        openaiApiKey: newApiKey,
+                        openaiApiKey: globalKey, // STRICT: Only use Global Key. Ignore user settings garbage.
                         availableExerciseNames: newAvailableExercises,
                         includeLegs: newIncludeLegs,
                         programMode: newProgramMode,
@@ -590,7 +622,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         ...prev,
                         dailyWorkout: uniqueMappedWorkout,
                         lastWorkoutDate: new Date().toDateString(),
-                        currentSplit: requestedSplit as any
+                        currentSplit: requestedSplit as any,
+                        // CAPTURE AI STRATEGY
+                        strategyInsight: aiResult.strategy
                     }));
                     return; // EXIT EARLY
                 }
@@ -607,6 +641,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         const { selectedExercises, splitToUse } = calculateWorkout(splitOverride, focusOverride, equipmentOverride);
 
+        // Use Centralized Logic
+        const strategyText = getStaticInsight(splitToUse, focusOverride || "");
+
         setState(prev => ({
             ...prev,
             dailyWorkout: selectedExercises,
@@ -618,7 +655,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // but for 'focus' or 'split' we might want to persist if passed.
             // Current usage implies buttons call this to switching modes, so yes.
             focusArea: focusOverride || prev.focusArea,
-            currentSplit: (splitOverride || splitToUse) as any
+            currentSplit: (splitOverride || splitToUse) as any,
+            strategyInsight: strategyText
         }));
 
         setIsGenerating(false);
@@ -654,6 +692,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 state.favorites
             );
 
+            console.log("Create Refined Workout Result:", result);
+
             if (result.exercises.length > 0) {
                 // Remap to workout objects
                 // We reuse the logic from generateWorkout roughly, but simpler potentially
@@ -685,6 +725,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     };
                 });
 
+                console.log("Mapped Workout:", mappedWorkout);
+                console.log("Strategy Insight:", result.strategy);
+
                 setState(prev => ({
                     ...prev,
                     dailyWorkout: mappedWorkout,
@@ -694,7 +737,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     focusArea: 'Custom: ' + (prompt.length > 20 ? prompt.substring(0, 20) + '...' : prompt)
                 }));
             } else {
-                setState(prev => ({ ...prev, isGenerating: false, generationStatus: undefined }));
+                console.warn("SmartParser returned 0 exercises.");
+                setState(prev => ({
+                    ...prev,
+                    isGenerating: false,
+                    strategyInsight: result.strategy || "AI could not generate a valid workout from your instructions. Please try providing more detail."
+                }));
             }
 
         } catch (e) {
@@ -1433,9 +1481,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // If switching TO Cycle, calculateWorkout will handle the override
             generateWorkout(state.currentSplit, 'Default');
 
-            // 6. Hide Loader
-            setTimeout(() => setIsGenerating(false), 500);
         }, 2000);
+    };
+
+    const setApiKey = async (key: string) => {
+        setState(prev => ({ ...prev, openaiApiKey: key }));
+        const { data: { user } = { user: null } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('user_settings').upsert({ id: user.id, openai_api_key: key });
+        }
     };
 
     const value = {
@@ -1451,6 +1505,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         reorderWorkout,
         setFocusArea,
         generateCustomWorkout,
+        setApiKey,
         clearCustomWorkout,
         toggleFavorite,
         addCustomExercise,

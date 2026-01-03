@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useWorkout } from '../context/WorkoutContext';
-import { Dumbbell, Star, Plus, Trash2, CalendarDays, CheckCircle2, History as HistoryIcon } from 'lucide-react';
+import { Dumbbell, Star, Plus, Trash2, CalendarDays, CheckCircle2, History as HistoryIcon, Key } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { UpcomingWorkoutModal } from '../components/UpcomingWorkoutModal';
-import { UserService } from '../services/UserService'; // Added import
+import { UserService } from '../services/UserService';
 
 export const Settings: React.FC = () => {
     const {
@@ -14,13 +14,14 @@ export const Settings: React.FC = () => {
         customExercises,
         addCustomExercise,
         deleteCustomExercise,
-        userEquipmentProfile, // Added state access
+        userEquipmentProfile,
         updateUserEquipmentProfile,
         openaiApiKey,
+        // setApiKey, // Removed for User (Admin Managed)
 
         connectionStatus,
-        includeLegs, // Added by user's instruction
-        toggleLegs, // Added by user's instruction
+        includeLegs,
+        toggleLegs,
 
         cycleIndex,
         clearHistory,
@@ -30,11 +31,11 @@ export const Settings: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'equipment' | 'favorites' | 'custom'>('equipment');
     const [showUpcomingModal, setShowUpcomingModal] = useState(false);
     const [selectedFavorite, setSelectedFavorite] = useState<string | null>(null);
-    const [apiKey, setApiKey] = useState(openaiApiKey || '');
+    const [apiKey, setLocalApiKey] = useState(openaiApiKey || '');
 
     // Update local key state when context updates (e.g. from cloud load)
     React.useEffect(() => {
-        if (openaiApiKey) setApiKey(openaiApiKey);
+        if (openaiApiKey) setLocalApiKey(openaiApiKey);
     }, [openaiApiKey]);
 
     // UI State for Profile Init
@@ -138,7 +139,7 @@ export const Settings: React.FC = () => {
                         </Link>
                     )}
                     <div className={`text-xs px-3 py-1.5 rounded-full border ${apiKey ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                        {apiKey ? 'AI Active' : 'AI Offline'}
+                        {apiKey ? 'AI Active (Admin Managed)' : 'AI Offline'}
                     </div>
                     {/* Sync Status Badge */}
                     <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
@@ -151,8 +152,31 @@ export const Settings: React.FC = () => {
             </div>
 
             {/* AI Key Input */}
-            {/* AI Key Input */}
-            {/* AI Key Managed by Admin - Input Removed */}
+            <div className="glass-card p-4 flex flex-col gap-2 relative overflow-hidden">
+                <div className="flex justify-between items-center relative z-10">
+                    <label className="text-sm font-bold text-slate-300 flex items-center gap-2">
+                        <Key size={16} className="text-indigo-400" />
+                        AI Configuration
+                    </label>
+                    {apiKey ? (
+                        <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 flex items-center gap-1">
+                            <CheckCircle2 size={12} />
+                            Key Managed by Admin
+                        </span>
+                    ) : (
+                        <span className="text-xs text-slate-500 font-bold bg-slate-800 px-2 py-1 rounded border border-slate-700">
+                            No Global Key Found
+                        </span>
+                    )}
+                </div>
+
+                <p className="text-xs text-slate-400 mt-1">
+                    The AI API key is centrally managed by the administrator. You don't need to do anything here.
+                </p>
+
+                {/* Visual decoration */}
+                <div className="absolute -right-4 -top-4 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl" />
+            </div>
 
             {/* Quick Actions Grid */}
             <div className="grid grid-cols-2 gap-4">
@@ -189,8 +213,6 @@ export const Settings: React.FC = () => {
                     </button>
                 ))}
             </div>
-
-
 
             <div className="glass-card p-6 min-h-[400px]">
 
@@ -321,7 +343,6 @@ export const Settings: React.FC = () => {
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="h-48 bg-slate-800 flex items-center justify-center relative">
-                                {/* Use parsed info or find in allExercises? For now just showing name since we have string favorite */}
                                 <div className="text-6xl">💪</div>
                                 <button
                                     onClick={() => setSelectedFavorite(null)}
@@ -362,7 +383,7 @@ export const Settings: React.FC = () => {
 
                             <div className="space-y-4">
                                 <textarea
-                                    value={newExercise.name} // We reusing 'name' field for the prompt temporarily or should we change state? Let's use name.
+                                    value={newExercise.name}
                                     onChange={(e) => setNewExercise({ ...newExercise, name: e.target.value })}
                                     className="w-full h-32 bg-slate-950 border border-slate-700 rounded-xl p-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 outline-none resize-none placeholder-slate-600"
                                     placeholder="e.g. I want to do glute kickbacks using the cable machine..."
@@ -371,10 +392,10 @@ export const Settings: React.FC = () => {
                                 <button
                                     onClick={async () => {
                                         if (!newExercise.name) return;
-                                        setIsScanning(true); // Reuse scanning state for loading
+                                        setIsScanning(true);
                                         try {
                                             const added = await addCustomExercise(newExercise.name);
-                                            setCustomSuccessExercise(added); // Save added exercise details
+                                            setCustomSuccessExercise(added);
                                             setNewExercise({ ...newExercise, name: '' });
                                         } catch (e) {
                                             alert("Failed to add exercise. Please try again.");
@@ -463,20 +484,6 @@ export const Settings: React.FC = () => {
                 </div>
             </div>
 
-            {/* DANGER ZONE (Disabled after initial reset)
-            <div className="glass-card p-6 border-red-500/20">
-                <h3 className="text-red-400 font-bold mb-2 flex items-center gap-2">
-                    <Trash2 size={16} /> Danger Zone
-                </h3>
-                <button
-                    onClick={() => setShowResetConfirm(true)}
-                    className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-lg border border-red-500/20 transition-colors"
-                >
-                    Reset Account Data
-                </button>
-            </div>
-            */}
-
             {/* RESET CONFIRMATION MODAL */}
             {showResetConfirm && (
                 <div
@@ -506,7 +513,6 @@ export const Settings: React.FC = () => {
                                     onClick={() => {
                                         clearHistory();
                                         setShowResetConfirm(false);
-                                        // Optional: Show success toast
                                     }}
                                     className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-colors"
                                 >
@@ -523,7 +529,6 @@ export const Settings: React.FC = () => {
                 <button
                     onClick={async () => {
                         await UserService.signOut();
-                        // Redirect handled by Auth Listener in Context
                     }}
                     className="w-full py-3 text-slate-500 hover:text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
                 >

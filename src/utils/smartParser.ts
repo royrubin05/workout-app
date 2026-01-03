@@ -27,10 +27,14 @@ const KEYWORDS = {
 /**
  * Helper to call OpenAI API
  */
-const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: string): Promise<string | null> => {
+const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: string): Promise<{ content: string | null, error?: string }> => {
     if (!apiKey) {
         console.warn("SmartParser: No API Key provided to callOpenAI");
-        return null;
+        return { content: null, error: "Missing API Key" };
+    }
+
+    if (!apiKey.startsWith("sk-")) {
+        return { content: null, error: "Invalid API Key format (must start with 'sk-')" };
     }
 
     const controller = new AbortController();
@@ -59,15 +63,23 @@ const callOpenAI = async (apiKey: string, systemPrompt: string, userPrompt: stri
         if (!res.ok) {
             const errText = await res.text();
             console.error('OpenAI API Error Status:', res.status, errText);
-            return null;
+
+            let cleanError = `API Error ${res.status}`;
+            try {
+                const jsonErr = JSON.parse(errText);
+                if (jsonErr.error?.message) cleanError += `: ${jsonErr.error.message}`;
+            } catch (e) {
+                cleanError += `: ${errText.substring(0, 100)}`;
+            }
+            return { content: null, error: cleanError };
         }
 
         const data = await res.json();
-        return data.choices?.[0]?.message?.content || null;
-    } catch (e) {
+        return { content: data.choices?.[0]?.message?.content || null };
+    } catch (e: any) {
         clearTimeout(timeoutId);
         console.error('OpenAI Network/Fetch Failed or Timed Out:', e);
-        return null; // Fallback to regex
+        return { content: null, error: `Network/Timeout: ${e.message || e}` };
     }
 };
 
@@ -77,16 +89,16 @@ export const SmartParser = {
      */
     classifyExercise: async (apiKey: string, name: string) => {
         // Try AI First
-        const aiResponse = await callOpenAI(
+        const { content: aiResponseContent } = await callOpenAI(
             apiKey,
             `You are a fitness expert. Classify the exercise provided into JSON format: { "muscleGroup": "Chest"|"Back"|"Legs"|"Shoulders"|"Biceps"|"Triceps"|"Abs"|"Full Body", "category": "Push"|"Pull"|"Legs"|"Core"|"Full Body", "equipment": "Barbell"|"Dumbbells"|"Bodyweight"|"Machine"|"Cables"|"Bands"|"Kettlebell" }. Only return JSON.`,
             `Exercise: ${name}`
         );
 
-        if (aiResponse) {
+        if (aiResponseContent) {
             try {
                 // Cleanup JSON formatting if md code block is returned
-                const jsonStr = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const jsonStr = aiResponseContent.replace(/```json/g, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(jsonStr);
                 return {
                     muscleGroup: parsed.muscleGroup || 'Full Body',
@@ -176,16 +188,16 @@ export const SmartParser = {
         Example: ["Pushups", "Squats"]
         `;
 
-        const aiResponse = await callOpenAI(
+        const { content: aiResponseContent, error: aiError } = await callOpenAI(
             apiKey,
             `You are a strict fitness equipment auditor. Return JSON array of valid exercise names.`,
             prompt
         );
 
-        if (aiResponse) {
+        if (aiResponseContent) {
             try {
                 // Heuristic: If response is just a list, clean it heavily
-                const clean = aiResponse
+                const clean = aiResponseContent
                     .replace(/```json/g, '')
                     .replace(/```/g, '')
                     .replace(/^\s*\[/, '[')
@@ -195,8 +207,10 @@ export const SmartParser = {
                 const parsed = JSON.parse(clean);
                 if (Array.isArray(parsed)) return parsed.map(s => typeof s === 'string' ? s : '').filter(Boolean);
             } catch (e) {
-                console.warn('AI Batch Filter Parsing Error:', e, aiResponse.substring(0, 100));
+                console.warn('AI Batch Filter Parsing Error:', e, aiResponseContent.substring(0, 100));
             }
+        } else if (aiError) {
+            console.warn('AI Batch Filter API Error:', aiError);
         }
 
         // 2. Fallback Regex Logic (Offline)
@@ -259,17 +273,16 @@ export const SmartParser = {
         2. Sequence them logically: Warmup -> Heavy Compound -> Hypertrophy -> Isolation/Finisher.
         3. If a Favorite fits the split/muscle, USE IT and place it prominently.
         4. STRICT FOCUS RULE: If '${focusArea}' is NOT 'Default', every exercise MUST target '${focusArea}'. Do NOT include secondary muscles (e.g. if Focus is Chest, do NOT add Triceps). If '${focusArea}' is 'Arms', respect the Split (Push=Triceps, Pull=Biceps).
-        5. Return JSON OBJECT: { 
-            "strategy": "A 2-sentence specific advice for this specific workout session (e.g. 'Focus on slow eccentrics for chest today as we are doing high volume...')",
-            "exercises": [{"name": "Bench Press", "sets": "4", "reps": "5-8", "note": "Explode up"}] 
+            "strategy": "Direct, actionable coaching advice. Start with a verb. Do not say 'This workout...'. Example: 'Focus on slow tempor for your presses today.'",
+            "exercises": [{"name": "Bench Press", "sets": "4", "reps": "5-8", "note": "Explode up"}]
         }
         `;
 
-        const response = await callOpenAI(apiKey, "You are a world-class program designer. Return ONLY JSON.", prompt);
-        if (!response) return { strategy: "Focus on form.", exercises: [] };
+        const { content: responseContent, error: responseError } = await callOpenAI(apiKey, "You are a world-class program designer. Return ONLY JSON.", prompt);
+        if (!responseContent) return { strategy: `Workout generation failed: ${responseError || "Unknown error"}`, exercises: [] };
 
         try {
-            const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            const jsonStr = responseContent.replace(/```json/g, '').replace(/```/g, '').trim();
             const json = JSON.parse(jsonStr);
             if (json.exercises && Array.isArray(json.exercises)) {
                 return {
@@ -299,36 +312,44 @@ export const SmartParser = {
         const currentList = currentWorkout.map(e => `- ${e.name} (${e.sets}x${e.reps})`).join('\n');
 
         const prompt = `
-        Refine the following workout plan based on the user's custom instructions.
+        ACT AS AN ELITE FITNESS COACH.
+        
+        YOUR GOAL: Modify the "Current Plan" below to STRICTLY ADHERE to the "USER INSTRUCTIONS".
         
         Current Plan:
         ${currentList}
 
         User Equipment: ${equipmentProfile || "Bodyweight"}
-        USER INSTRUCTIONS: "${userInstructions}"
-
-        Available Whitelist (Use primarily these if you need to replace exercises): 
-        ${availableExercises.slice(0, 100).join(', ')}...
         
-        Favorites: ${favorites.join(', ')}
+        CRITICAL INSTRUCTIONS: "${userInstructions}"
 
-        Task:
-        1. Modify the Current Plan to strictly adhere to the USER INSTRUCTIONS.
-        2. Replace exercises that violate the instructions (e.g. if "Shoulder Injury", remove Overhead Press and replace with safer alternative or nothing).
-        3. Maintain the overall structure/volume if possible, unless instructed otherwise.
-        4. Return the complete, updated list of exercises in JSON format.
+        Available Whitelist (Use these exercises if you need to swap/replace): 
+        ${availableExercises.slice(0, 150).join(', ')}...
+        
+        Favorites (Prioritize these if they fit): ${favorites.join(', ')}
 
-        Return JSON OBJECT: { 
-            "strategy": "A specific advice explaining what you changed and why (e.g. 'Removed overhead pressing to protect your shoulder, added lateral raises instead.')",
-            "exercises": [{"name": "Exercise Name", "sets": "4", "reps": "8-12", "note": "Technique cue"}] 
+        EXECUTION RULES:
+        1. IF the user asks to "remove" or "avoid" something, YOU MUST REMOVE IT. Do not keep it.
+        2. IF the user asks to "focus" on something, REPLACE non-essential exercises with relevant ones from the whitelist.
+        3. YOU HAVE PERMISSION TO COMPLETELY REWRITE THE EXERCISE LIST if necessary to meet the User Instructions.
+        4. Strategy: Explain exactly what you changed and why, referencing the user's specific request.
+
+        Return JSON OBJECT: {
+            "strategy": "Concise explanation of changes. Start with 'Adjusted plan to...'",
+            "exercises": [{"name": "Exercise Name", "sets": "4", "reps": "8-12", "note": "Technique note"}]
         }
         `;
 
-        const response = await callOpenAI(apiKey, "You are an adaptive fitness coach. Return ONLY JSON.", prompt);
-        if (!response) return { strategy: "Could not refine workout.", exercises: [] };
+        console.log("Sending Refinement Prompt to OpenAI...");
+        const { content: responseContent, error: responseError } = await callOpenAI(apiKey, "You are a strict fitness coach. You MUST modify the workout to match instructions.", prompt);
+        console.log("OpenAI Response:", responseContent);
+
+        if (!responseContent) {
+            return { strategy: `Refinement Failed: ${responseError || "Unknown Error"}`, exercises: [] };
+        }
 
         try {
-            const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            const jsonStr = responseContent.replace(/```json/g, '').replace(/```/g, '').trim();
             const json = JSON.parse(jsonStr);
             if (json.exercises && Array.isArray(json.exercises)) {
                 return {
@@ -359,11 +380,11 @@ export const SmartParser = {
         - description: A 1-sentence form cue.
         `;
 
-        const response = await callOpenAI(apiKey, "You are a fitness data expert.", query);
+        const { content: responseContent } = await callOpenAI(apiKey, "You are a fitness data expert.", query);
 
-        if (response) {
+        if (responseContent) {
             try {
-                const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                const jsonStr = responseContent.replace(/```json/g, '').replace(/```/g, '').trim();
                 const parsed = JSON.parse(jsonStr);
                 return {
                     name: parsed.name || prompt,
@@ -491,11 +512,15 @@ Recent Stats (Big 4):
 
 Task: Generate today's workout.`;
 
-        const response = await callOpenAI(apiKey, systemPrompt, userPrompt);
-        if (!response) return { success: false };
+        const { content: responseContent, error: responseError } = await callOpenAI(apiKey, systemPrompt, userPrompt);
+
+        if (!responseContent) {
+            console.warn("SmartParser: AI response failed for Advanced Cycle.", responseError);
+            return { success: false };
+        }
 
         try {
-            const jsonStr = response.replace(/```json/g, '').replace(/```/g, '').trim();
+            const jsonStr = responseContent.replace(/```json/g, '').replace(/```/g, '').trim();
             const parsed = JSON.parse(jsonStr);
             return { success: true, workout: parsed };
         } catch (e) {
