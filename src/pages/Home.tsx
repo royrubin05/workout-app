@@ -278,12 +278,12 @@ export const Home: React.FC = () => {
                                 <motion.div
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-xl text-indigo-200 text-sm flex gap-3"
+                                    className="bg-indigo-500/10 border border-indigo-500/30 p-4 rounded-xl text-indigo-200 text-sm flex gap-3 shadow-lg shadow-indigo-900/10 backdrop-blur-sm"
                                 >
-                                    <Sparkles size={18} className="text-indigo-400 shrink-0 mt-0.5" />
+                                    <Sparkles size={20} className="text-indigo-400 shrink-0 mt-0.5" />
                                     <div>
-                                        <p className="font-bold text-indigo-300 text-xs uppercase tracking-wide mb-1">AI Coach Strategy</p>
-                                        <p className="text-indigo-100 leading-relaxed">{strategyInsight}</p>
+                                        <p className="font-bold text-indigo-300 text-xs uppercase tracking-widest mb-1">AI Strategy</p>
+                                        <p className="text-indigo-100 leading-relaxed font-medium">{strategyInsight}</p>
                                     </div>
                                 </motion.div>
                             )}
@@ -292,43 +292,44 @@ export const Home: React.FC = () => {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 onClick={() => setIsPromptOpen(true)}
-                                className="w-full py-2 px-3 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 text-sm font-medium hover:bg-slate-800 hover:text-white hover:border-slate-600 transition-all flex items-center justify-center gap-2 group"
+                                className="w-full py-3 px-4 rounded-xl border border-slate-700/50 bg-gradient-to-r from-slate-800 to-slate-900 text-slate-400 text-sm font-bold hover:from-slate-700 hover:to-slate-800 hover:text-white hover:border-slate-500 transition-all flex items-center justify-center gap-2 group shadow-lg"
                             >
-                                <MessageSquarePlus size={16} className="group-hover:text-blue-400 transition-colors" />
-                                <span>Customize for injuries or specific needs...</span>
+                                <MessageSquarePlus size={18} className="group-hover:text-blue-400 transition-colors" />
+                                <span>Customize workout...</span>
                             </motion.button>
                         </div>
                     ) : (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg overflow-hidden"
+                            initial={{ height: 0, opacity: 0, scale: 0.95 }}
+                            animate={{ height: 'auto', opacity: 1, scale: 1 }}
+                            exit={{ height: 0, opacity: 0, scale: 0.95 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="bg-slate-800/80 backdrop-blur-md p-5 rounded-2xl border border-blue-500/30 shadow-2xl overflow-hidden ring-1 ring-blue-500/20"
                         >
-                            <label className="block text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">
-                                AI Custom Instructions
+                            <label className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-widest mb-3">
+                                <Sparkles size={14} /> AI Custom Instructions
                             </label>
                             <textarea
                                 value={customPromptText}
                                 onChange={(e) => setCustomPromptText(e.target.value)}
-                                placeholder="e.g. 'I have a sore lower back, avoid deadlifts' or 'Make it a HIT workout'..."
-                                className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-slate-600 mb-3 min-h-[80px]"
+                                placeholder="Describe your needs (e.g. 'Shoulder injury, avoid overhead pressing' or 'Focus on triceps')..."
+                                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl p-4 text-white text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none placeholder:text-slate-600 mb-4 min-h-[100px] resize-none transition-all"
                                 autoFocus
                             />
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-3">
                                 <button
                                     onClick={() => setIsPromptOpen(false)}
-                                    className="px-3 py-1.5 text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                                    className="px-4 py-2 text-slate-400 hover:text-white text-sm font-bold transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleCustomRefine}
                                     disabled={!customPromptText.trim()}
-                                    className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-lg shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                                    className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all transform active:scale-95"
                                 >
-                                    <Sparkles size={14} />
-                                    Refine Workout
+                                    <Sparkles size={16} />
+                                    Refine Plan
                                 </button>
                             </div>
                         </motion.div>
