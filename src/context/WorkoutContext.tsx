@@ -105,6 +105,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [isLoaded, setIsLoaded] = useState(false);
     const [allExercises, setAllExercises] = useState<Exercise[]>([]);
     const [loadingProgress, setLoadingProgress] = useState(0);
+    const [isUserDataLoaded, setIsUserDataLoaded] = useState(false); // NEW: Prevent sync until user data loaded
 
     // Load Exercises from DB on Mount
     useEffect(() => {
@@ -239,6 +240,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     connectionStatus: 'disconnected',
                     connectionError: e.message || 'Unknown connection error'
                 }));
+            } finally {
+                setIsUserDataLoaded(true); // Allow sync now that we've attempted load
             }
         };
 
@@ -265,7 +268,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Sync State changes to Cloud
     useEffect(() => {
-        if (!isLoaded || state.connectionStatus === 'checking') return;
+        if (!isLoaded || !isUserDataLoaded || state.connectionStatus === 'checking') return;
 
         const syncToCloud = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -299,7 +302,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         state.focusArea,
         state.openaiApiKey, // Ensure API Key changes trigger sync
         state.availableExerciseNames, // Sync Whitelist
+        state.availableExerciseNames, // Sync Whitelist
         isLoaded,
+        isUserDataLoaded,
         state.connectionStatus
     ]);
 
